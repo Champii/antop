@@ -280,6 +280,14 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
         let text_area = row_content_chunks[0];
         let chart_placeholder_area = row_content_chunks[1];
 
+        // Split the chart placeholder area vertically for Rx and Tx charts
+        let chart_areas = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Percentage(50), Constraint::Percentage(50)])
+            .split(chart_placeholder_area);
+        let chart_area_rx = chart_areas[0];
+        let chart_area_tx = chart_areas[1];
+
         // Get metrics and determine style (remains the same)
         let metrics_result = app.metrics.get(url);
         // Define column widths based on header comment (line 33) + Status
@@ -364,52 +372,103 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
         let status_paragraph = Paragraph::new(format!("{:<8}", status_text)).style(style); // Pad status
         f.render_widget(status_paragraph, column_chunks[10]);
 
-        // Render the Speed In Chart (remains the same)
-        let chart_data = match metrics_result {
+        // --- Render Rx Chart ---
+        let chart_data_in = match metrics_result {
             Some(Ok(metrics)) => metrics.chart_data_in.as_deref(),
             _ => None,
         };
 
-        if let Some(data) = chart_data {
+        if let Some(data) = chart_data_in {
             if data.len() >= 2 {
-                let datasets = vec![
+                let datasets_in = vec![
                     Dataset::default()
-                        .name("Speed In")
+                        .name("Rx")
                         .marker(symbols::Marker::Braille)
                         .graph_type(GraphType::Line)
-                        .style(Style::default().fg(Color::Cyan)) // Changed color for visibility
+                        .style(Style::default().fg(Color::Cyan))
                         .data(data),
                 ];
-                let x_bounds = [0.0, (data.len() - 1).max(1) as f64];
-                let y_max = data.iter().map(|&(_, y)| y).fold(f64::NAN, f64::max);
-                let y_bounds = [0.0, y_max.max(1.0)];
-                let chart = Chart::new(datasets)
+                let x_bounds_in = [0.0, (data.len() - 1).max(1) as f64];
+                let y_max_in = data.iter().map(|&(_, y)| y).fold(f64::NAN, f64::max);
+                let y_bounds_in = [0.0, y_max_in.max(1.0)]; // Ensure lower bound is 0
+                let chart_in = Chart::new(datasets_in)
                     .x_axis(
                         Axis::default()
                             .style(Style::default().fg(Color::DarkGray))
-                            .bounds(x_bounds),
+                            .bounds(x_bounds_in)
+                            .labels::<Vec<ratatui::text::Span<'_>>>(vec![]), // Hide X labels for space
                     )
                     .y_axis(
                         Axis::default()
-                            .title(Line::from(" Bps").style(Style::default().fg(Color::Gray)))
+                            // .title(Line::from(" Bps").style(Style::default().fg(Color::Gray))) // Remove title for space
                             .style(Style::default().fg(Color::DarkGray))
-                            .bounds(y_bounds)
-                            .labels(vec![Span::from("0"), Span::from(format!("{:.0}", y_max))]),
+                            .bounds(y_bounds_in)
+                            .labels::<Vec<ratatui::text::Span<'_>>>(vec![])
+                            .labels_alignment(Alignment::Right),
                     );
-                f.render_widget(chart, chart_placeholder_area);
+                f.render_widget(chart_in, chart_area_rx); // Render in Rx area
             } else {
-                let placeholder = Block::default().borders(Borders::LEFT).title(Span::styled(
-                    "Speed In (no data)",
-                    Style::default().fg(Color::DarkGray),
-                ));
-                f.render_widget(placeholder, chart_placeholder_area);
+                // Placeholder for Rx if not enough data
+                let placeholder_in = Paragraph::new("Rx (no data)")
+                    .style(Style::default().fg(Color::DarkGray))
+                    .alignment(Alignment::Center);
+                f.render_widget(placeholder_in, chart_area_rx);
             }
         } else {
-            let placeholder = Block::default().borders(Borders::LEFT).title(Span::styled(
-                "Speed In (N/A)",
-                Style::default().fg(Color::DarkGray),
-            ));
-            f.render_widget(placeholder, chart_placeholder_area);
+            // Placeholder for Rx if N/A
+            let placeholder_in = Paragraph::new("Rx (N/A)")
+                .style(Style::default().fg(Color::DarkGray))
+                .alignment(Alignment::Center);
+            f.render_widget(placeholder_in, chart_area_rx);
+        }
+
+        // --- Render Tx Chart ---
+        let chart_data_out = match metrics_result {
+            Some(Ok(metrics)) => metrics.chart_data_out.as_deref(), // Assumes chart_data_out exists
+            _ => None,
+        };
+
+        if let Some(data) = chart_data_out {
+            if data.len() >= 2 {
+                let datasets_out = vec![
+                    Dataset::default()
+                        .name("Tx")
+                        .marker(symbols::Marker::Braille)
+                        .graph_type(GraphType::Line)
+                        .style(Style::default().fg(Color::Magenta)) // Different color for Tx
+                        .data(data),
+                ];
+                let x_bounds_out = [0.0, (data.len() - 1).max(1) as f64];
+                let y_max_out = data.iter().map(|&(_, y)| y).fold(f64::NAN, f64::max);
+                let y_bounds_out = [0.0, y_max_out.max(1.0)]; // Ensure lower bound is 0
+                let chart_out = Chart::new(datasets_out)
+                    .x_axis(
+                        Axis::default()
+                            .style(Style::default().fg(Color::DarkGray))
+                            .bounds(x_bounds_out)
+                            .labels::<Vec<ratatui::text::Span<'_>>>(vec![]), // Hide X labels
+                    )
+                    .y_axis(
+                        Axis::default()
+                            // .title(Line::from(" Bps").style(Style::default().fg(Color::Gray))) // Remove title
+                            .style(Style::default().fg(Color::DarkGray))
+                            .bounds(y_bounds_out)
+                            .labels::<Vec<ratatui::text::Span<'_>>>(vec![]),
+                    );
+                f.render_widget(chart_out, chart_area_tx); // Render in Tx area
+            } else {
+                // Placeholder for Tx if not enough data
+                let placeholder_out = Paragraph::new("Tx (no data)")
+                    .style(Style::default().fg(Color::DarkGray))
+                    .alignment(Alignment::Center);
+                f.render_widget(placeholder_out, chart_area_tx);
+            }
+        } else {
+            // Placeholder for Tx if N/A
+            let placeholder_out = Paragraph::new("Tx (N/A)")
+                .style(Style::default().fg(Color::DarkGray))
+                .alignment(Alignment::Center);
+            f.render_widget(placeholder_out, chart_area_tx);
         }
     }
 } // End of render_custom_node_rows
