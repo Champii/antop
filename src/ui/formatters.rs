@@ -79,13 +79,8 @@ pub fn create_list_item_cells(name: &str, metrics: &NodeMetrics) -> Vec<String> 
         format!("{}", format_uptime(metrics.uptime_seconds)),          // Uptime
         format!("{}MB", format_float(metrics.memory_used_mb, 1)),      // Mem MB
         format!("{}%", format_float(metrics.cpu_usage_percentage, 1)), // CPU %
-        format!(
-            "{}", // Removed :<7 padding
-            format_peers(
-                metrics.connected_peers.map(|v| v as u32),
-                metrics.peers_in_routing_table.map(|v| v as u32)
-            )
-        ), // Peers
+        format!("{}", format_option(metrics.connected_peers)),         // Peers (Live)
+        format!("{}", format_option(metrics.peers_in_routing_table)),  // Routing Table Size
         // Use total bytes (bandwidth_..._bytes) and format_option_u64_bytes instead of current speed
         format!(
             "{}",
@@ -109,7 +104,8 @@ pub fn create_placeholder_cells(name: &str) -> Vec<String> {
         format!("{:<12}", "-"),  // Uptime
         format!("{:<6}", "-"),   // Mem MB
         format!("{:<5}", "-"),   // CPU %
-        format!("{:<7}", "-"),   // Peers
+        format!("{:<7}", "-"),   // Peers (Live)
+        format!("{:<7}", "-"),   // Routing Table Size
         format!("{:<10}", "-"),  // BW In
         format!("{:<10}", "-"),  // BW Out
         format!("{:<7}", "-"),   // Records
