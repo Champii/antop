@@ -183,8 +183,8 @@ fn ui(f: &mut Frame, app: &mut App) {
 }
 
 fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
-    let outer_block = Block::default().borders(Borders::ALL).title("Nodes");
-    f.render_widget(outer_block, area); // Render the block first
+    // let outer_block = Block::default().borders(Borders::ALL).title("Nodes");
+    // f.render_widget(outer_block, area); // Render the block first
 
     let inner_area = area.inner(Margin {
         vertical: 1,
