@@ -22,7 +22,7 @@ use std::{
     io::{self, Stdout},
     time::Duration,
 };
-use num_format::{Locale, ToFormattedString}; // Added for number formatting
+use humansize::{format_size, DECIMAL};
 use tokio::time::interval;
 
 // --- TUI Setup and Restore ---
@@ -163,7 +163,7 @@ fn ui(f: &mut Frame, app: &mut App) {
 fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
     let header_cells = [
         "Server", "Uptime", "Mem (MB)", "CPU (%)", "Peers", "RT Peers", "Net Size",
-        "BW In (B)", "BW Out (B)", "Records", "PUT Err", "Rewards", "Conn Err In", "Conn Err Out", "Kad Err", "Status"
+        "BW In", "BW Out", "Records", "PUT Err", "Rewards", "Conn Err In", "Conn Err Out", "Kad Err", "Status"
     ]
     .iter()
     .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow)));
@@ -247,9 +247,10 @@ fn format_float(opt: Option<f64>, precision: usize) -> String {
     }
 }
 // Helper to format Option<u64> with thousands separators
-fn format_option_u64(opt: Option<u64>) -> String {
+// Helper to format Option<u64> bytes into human-readable size (KB, MB, GB)
+fn format_option_u64_bytes(opt: Option<u64>) -> String {
     match opt {
-        Some(val) => val.to_formatted_string(&Locale::en),
+        Some(val) => humansize::format_size(val, humansize::DECIMAL), // Use humansize formatting
         None => "-".to_string(),
     }
 }
@@ -265,9 +266,9 @@ fn create_metrics_cells<'a>(addr: &'a str, metrics: &'a NodeMetrics) -> Vec<Cell
         Cell::from(format_float(metrics.cpu_usage_percentage, 1)),
         Cell::from(format_option(metrics.connected_peers)),
         Cell::from(format_option(metrics.peers_in_routing_table)),
-        Cell::from(format_option_u64(metrics.estimated_network_size)),
-        Cell::from(format_option_u64(metrics.bandwidth_inbound_bytes)),
-        Cell::from(format_option_u64(metrics.bandwidth_outbound_bytes)),
+        Cell::from(format_option_u64_bytes(metrics.estimated_network_size)),
+        Cell::from(format_option_u64_bytes(metrics.bandwidth_inbound_bytes)),
+        Cell::from(format_option_u64_bytes(metrics.bandwidth_outbound_bytes)),
         Cell::from(format_option(metrics.records_stored)),
         Cell::from(format_option(metrics.put_record_errors)),
         Cell::from(format_option(metrics.reward_wallet_balance)),
