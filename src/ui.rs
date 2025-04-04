@@ -13,7 +13,7 @@ use crossterm::{
 };
 use ratatui::{
     backend::{Backend, CrosstermBackend},
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     widgets::{Block, Borders, Cell, Paragraph, Row, Table}, // Removed TableState
     Frame, Terminal,
@@ -216,7 +216,9 @@ fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
     let table = Table::new(rows, &constraints) // Pass constraints reference
         .header(header)
         .block(Block::default().borders(Borders::ALL).title("Metrics"))
-        .widths(&constraints); // Apply widths based on constraints
+        .widths(&constraints)
+
+    .flex(ratatui::layout::Flex::End);
 
     // Use TableState for potential future scrolling
     f.render_stateful_widget(table, area, &mut app.table_state);
