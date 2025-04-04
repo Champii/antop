@@ -37,19 +37,19 @@ const DATA_CELL_STYLE: Style = Style::new().fg(Color::Gray); // Use Style::new()
 // Define column widths including charts for even distribution
 // 11 text columns + 2 chart columns = 13 total
 pub const COLUMN_CONSTRAINTS: [Constraint; 13] = [
-    Constraint::Length(18),  // Node
-    Constraint::Length(12),  // Uptime
-    Constraint::Length(6),   // Mem MB
-    Constraint::Length(5),   // CPU %
-    Constraint::Length(7),   // Peers
-    Constraint::Length(10), // BW In (Placeholder, now chart) - Keeping for index consistency initially
-    Constraint::Length(10), // BW Out (Placeholder, now chart) - Keeping for index consistency initially
-    Constraint::Length(7),  // Records
-    Constraint::Length(8),  // Reward
-    Constraint::Length(6),  // Err
-    Constraint::Length(10), // Status
-    Constraint::Ratio(1, 2), // Rx Chart Area - Shares remaining space equally with Tx
-    Constraint::Ratio(1, 2), // Tx Chart Area - Shares remaining space equally with Rx
+    Constraint::Ratio(1, 13), // Node
+    Constraint::Ratio(1, 13), // Uptime
+    Constraint::Ratio(1, 13), // Mem MB
+    Constraint::Ratio(1, 13), // CPU %
+    Constraint::Ratio(1, 13), // Peers
+    Constraint::Ratio(1, 13), // BW In (Placeholder) - Now proportional
+    Constraint::Ratio(1, 13), // BW Out (Placeholder) - Now proportional
+    Constraint::Ratio(1, 13), // Records
+    Constraint::Ratio(1, 13), // Reward
+    Constraint::Ratio(1, 13), // Err
+    Constraint::Ratio(1, 13), // Status
+    Constraint::Ratio(1, 13), // Rx Chart Area - Now proportional
+    Constraint::Ratio(1, 13), // Tx Chart Area - Now proportional
 ];
 
 // --- Rendering Helpers ---
