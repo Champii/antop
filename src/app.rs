@@ -6,7 +6,7 @@ use std::{
 }; // Added VecDeque
 
 // Number of data points to keep for sparklines
-const SPARKLINE_HISTORY_LENGTH: usize = 60;
+pub const SPARKLINE_HISTORY_LENGTH: usize = 60; // Make public
 
 /// Holds the application state.
 pub struct App {
@@ -123,11 +123,26 @@ impl App {
                     if history_out.len() > SPARKLINE_HISTORY_LENGTH {
                         history_out.pop_front();
                     }
+                    // Generate chart data from history
+                    current_metrics.chart_data_in = Some(
+                        history_in
+                            .iter()
+                            .enumerate()
+                            .map(|(i, &val)| (i as f64, val as f64))
+                            .collect(),
+                    );
+                    current_metrics.chart_data_out = Some(
+                        history_out
+                            .iter()
+                            .enumerate()
+                            .map(|(i, &val)| (i as f64, val as f64))
+                            .collect(),
+                    );
 
                     // Store the potentially updated metrics for the next cycle's "previous" state
                     next_previous_metrics.insert(addr.clone(), current_metrics.clone());
                     // Store the result for the current display state
-                    new_metrics_map.insert(addr, Ok(current_metrics));
+                    new_metrics_map.insert(addr.clone(), Ok(current_metrics.clone())); // Clone to avoid move
                 }
                 Err(e) => {
                     // Fetching failed, store error and add 0 to speed history
@@ -142,7 +157,9 @@ impl App {
                     if history_out.len() > SPARKLINE_HISTORY_LENGTH {
                         history_out.pop_front();
                     }
-                }
+                } // Ensure chart data is None or empty when there's an error
+                  // (NodeMetrics defaults to None, so no explicit action needed here unless
+                  // we wanted to store an empty Vec instead).
             }
         }
 

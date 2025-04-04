@@ -19,6 +19,9 @@ pub struct NodeMetrics {
     pub kad_get_closest_peers_errors: Option<u64>,
     pub speed_in_bps: Option<f64>,
     pub speed_out_bps: Option<f64>,
+    // Pre-processed data for the speed chart
+    pub chart_data_in: Option<Vec<(f64, f64)>>,
+    pub chart_data_out: Option<Vec<(f64, f64)>>,
 }
 
 /// Parses the raw metrics text into a NodeMetrics struct.
