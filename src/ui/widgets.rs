@@ -82,6 +82,18 @@ pub fn render_header(f: &mut Frame, area: Rect) {
             f.render_widget(title_paragraph, header_column_chunks[i]);
         }
     }
+
+    // Render Rx title in the second chunk (chart area)
+    let rx_title_paragraph = Paragraph::new("Rx")
+        .style(HEADER_STYLE)
+        .alignment(Alignment::Center); // Center align the title
+    f.render_widget(rx_title_paragraph, header_row_chunks[1]);
+
+    // Render Tx title in the third chunk (chart area)
+    let tx_title_paragraph = Paragraph::new("Tx")
+        .style(HEADER_STYLE)
+        .alignment(Alignment::Center); // Center align the title
+    f.render_widget(tx_title_paragraph, header_row_chunks[2]);
 }
 
 /// Renders a single bandwidth chart (Rx or Tx) and its associated speed.
