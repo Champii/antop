@@ -148,8 +148,8 @@ fn render_bandwidth_chart_and_speed(
         // Render current speed next to the chart
         let speed_text = format_speed_bps(current_speed);
         let speed_paragraph = Paragraph::new(speed_text)
-            .style(style) // Use the row's overall style (Green/Yellow/Gray)
-            .alignment(Alignment::Left);
+            // .style(style) // Use the row's overall style (Green/Yellow/Gray)
+            .alignment(Alignment::Right);
         f.render_widget(speed_paragraph, speed_area);
     } else {
         // Placeholder for the entire chart + speed area if no data
