@@ -21,7 +21,6 @@ use ratatui::{
     widgets::{Block, Borders, Cell, Paragraph, Row, Table},
 };
 use std::{
-    fmt::Display,
     io::{self, Stdout},
     time::Duration,
 };
@@ -159,7 +158,7 @@ fn ui(f: &mut Frame, app: &mut App) {
             ]
             .as_ref(),
         )
-        .split(f.size());
+        .split(f.area()); // Use f.area() instead of deprecated f.size()
 
     let title = Paragraph::new("Autonomi Node Dashboard | Press 'q' to quit");
     f.render_widget(title, chunks[0]);
@@ -185,15 +184,12 @@ fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
         "RT Peers",
         "BW In",
         "BW Out",
-        "Speed In",  // New column
-        "Speed Out", // New column
+        "Speed In",
+        "Speed Out",
         "Records",
-        "PUT Err",
         "Rewards",
-        "Conn Err In",
-        "Conn Err Out",
-        "Kad Err",
-        "Status",
+        "Err",    // New Error Sum column
+        "Status", // Restored Status column
     ]
     .iter()
     .map(|h| {
@@ -213,10 +209,13 @@ fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
         let metrics_result = app.metrics.get(url); // Use URL as key for metrics
         let (cells, row_style) = match metrics_result {
             Some(Ok(metrics)) => (create_metrics_cells(name, metrics), Style::default()), // Pass name
-            Some(Err(e)) => (create_error_cells(name, e), Style::default().fg(Color::Red)), // Pass name
+            Some(Err(e)) => (
+                create_error_cells(name, e),
+                Style::default().fg(Color::Yellow),
+            ), // Pass name, Yellow for Stopped/Fetch Error row
             None => (
-                create_error_cells(name, "Missing data"),
-                Style::default().fg(Color::DarkGray),
+                create_error_cells(name, "Stopped/Missing"), // More descriptive text
+                Style::default().fg(Color::Yellow),          // Yellow for Stopped/Missing row
             ), // Pass name
         };
         Row::new(cells).style(row_style)
@@ -232,15 +231,12 @@ fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
         Constraint::Length(8),  // RT Peers
         Constraint::Length(12), // BW In
         Constraint::Length(12), // BW Out
-        Constraint::Length(10), // Speed In  (New)
-        Constraint::Length(10), // Speed Out (New)
+        Constraint::Length(10), // Speed In
+        Constraint::Length(10), // Speed Out
         Constraint::Length(10), // Records
-        Constraint::Length(8),  // PUT Err
         Constraint::Length(10), // Rewards
-        Constraint::Length(15), // Conn Err In
-        Constraint::Length(15), // Conn Err Out
-        Constraint::Length(8),  // Kad Err
-        Constraint::Min(15),    // Status (flexible width)
+        Constraint::Length(8),  // Err (New)
+        Constraint::Min(10),    // Status (Restored, flexible width)
     ];
 
     let table = Table::new(rows, &constraints) // Pass constraints reference
@@ -311,6 +307,18 @@ fn format_speed_bps(speed_bps: Option<f64>) -> String {
 // Helper to create table cells for a row with valid metrics data
 fn create_metrics_cells<'a>(name: &'a str, metrics: &'a NodeMetrics) -> Vec<Cell<'a>> {
     // Accept name instead of addr
+
+    // Calculate total errors for the "Err" column
+    let put_err = metrics.put_record_errors.unwrap_or(0);
+    let conn_in_err = metrics.incoming_connection_errors.unwrap_or(0);
+    let conn_out_err = metrics.outgoing_connection_errors.unwrap_or(0);
+    let kad_err = metrics.kad_get_closest_peers_errors.unwrap_or(0);
+    let total_errors = put_err + conn_in_err + conn_out_err + kad_err;
+
+    // Determine Status text and style - always "Running" if metrics are present
+    let status_text = "Running";
+    let status_style = Style::default().fg(Color::Green);
+
     vec![
         right_aligned_cell(name.to_string()), // Display server name
         right_aligned_cell(format_uptime(metrics.uptime_seconds)),
@@ -318,29 +326,32 @@ fn create_metrics_cells<'a>(name: &'a str, metrics: &'a NodeMetrics) -> Vec<Cell
         right_aligned_cell(format_float(metrics.cpu_usage_percentage, 1)),
         right_aligned_cell(format_option(metrics.connected_peers)),
         right_aligned_cell(format_option(metrics.peers_in_routing_table)),
-        // Cell::from(format_option_u64_bytes(metrics.estimated_network_size)), // Removed Net Size - format_option_u64_bytes also removed
         right_aligned_cell(format_option_u64_bytes(metrics.bandwidth_inbound_bytes)),
         right_aligned_cell(format_option_u64_bytes(metrics.bandwidth_outbound_bytes)),
         right_aligned_cell(format_speed_bps(metrics.speed_in_bps)), // New Speed In cell
         right_aligned_cell(format_speed_bps(metrics.speed_out_bps)), // New Speed Out cell
         right_aligned_cell(format_option(metrics.records_stored)),
-        right_aligned_cell(format_option(metrics.put_record_errors)),
+        // Removed: right_aligned_cell(format_option(metrics.put_record_errors)),
         right_aligned_cell(format_option(metrics.reward_wallet_balance)),
-        right_aligned_cell(format_option(metrics.incoming_connection_errors)),
-        right_aligned_cell(format_option(metrics.outgoing_connection_errors)),
-        right_aligned_cell(format_option(metrics.kad_get_closest_peers_errors)),
-        right_aligned_cell("OK".to_string()).style(Style::default().fg(Color::Green)), // Status column
+        // Removed: right_aligned_cell(format_option(metrics.incoming_connection_errors)),
+        // Removed: right_aligned_cell(format_option(metrics.outgoing_connection_errors)),
+        // Removed: right_aligned_cell(format_option(metrics.kad_get_closest_peers_errors)),
+        right_aligned_cell(total_errors.to_string()), // New "Err" column showing sum
+        right_aligned_cell(status_text.to_string()).style(status_style), // Restored "Status" column
     ]
 }
 
-// Helper to create table cells for a row indicating an error state
+// Helper to create table cells for a row indicating an error state (e.g., fetch failed)
 fn create_error_cells<'a>(name: &'a str, error_msg: &'a str) -> Vec<Cell<'a>> {
     // Accept name instead of addr
-    let mut cells = vec![Cell::from(name.to_string())]; // Display server name
-    // Add placeholder cells for the metrics columns (now 13 metrics + 1 status = 14 total after name)
-    cells.extend(vec![Cell::from("-"); 15]); // 13 original + 2 speed columns
-    // Add the error message in the final 'Status' column
-    cells.push(Cell::from(error_msg.to_string()).style(Style::default().fg(Color::Red)));
+    let mut cells = vec![right_aligned_cell(name.to_string())]; // Display server name (right-aligned)
+    // Add placeholder cells for the metrics columns (11 columns: Uptime to Rewards)
+    cells.extend(vec![right_aligned_cell("-".to_string()); 11]);
+    // Add placeholder for the "Err" column
+    cells.push(right_aligned_cell("-".to_string()));
+    // Add the error message in the "Status" column
+    // Use Yellow for Stopped/Error fetching status cell
+    cells.push(right_aligned_cell(error_msg.to_string()).style(Style::default().fg(Color::Yellow)));
     cells
 }
 
