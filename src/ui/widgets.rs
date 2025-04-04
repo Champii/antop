@@ -34,66 +34,58 @@ const DATA_CELL_STYLE: Style = Style::new().fg(Color::Gray); // Use Style::new()
 
 // Define column widths based on header comment (line 33 in original ui.rs) + Status
 // These must match the constraints used for data rows
-pub const COLUMN_CONSTRAINTS: [Constraint; 12] = [
-    Constraint::Length(18), // Node
-    Constraint::Length(12), // Uptime
-    Constraint::Length(6),  // Mem MB
-    Constraint::Length(5),  // CPU %
-    Constraint::Length(7),  // Peers
-    Constraint::Length(10), // BW In
-    Constraint::Length(10), // BW Out
+// Define column widths including charts for even distribution
+// 11 text columns + 2 chart columns = 13 total
+pub const COLUMN_CONSTRAINTS: [Constraint; 13] = [
+    Constraint::Length(18),  // Node
+    Constraint::Length(12),  // Uptime
+    Constraint::Length(6),   // Mem MB
+    Constraint::Length(5),   // CPU %
+    Constraint::Length(7),   // Peers
+    Constraint::Length(10), // BW In (Placeholder, now chart) - Keeping for index consistency initially
+    Constraint::Length(10), // BW Out (Placeholder, now chart) - Keeping for index consistency initially
     Constraint::Length(7),  // Records
     Constraint::Length(8),  // Reward
     Constraint::Length(6),  // Err
     Constraint::Length(10), // Status
-    Constraint::Min(0),     // Spacer to fill text_area
+    Constraint::Ratio(1, 2), // Rx Chart Area - Shares remaining space equally with Tx
+    Constraint::Ratio(1, 2), // Tx Chart Area - Shares remaining space equally with Rx
 ];
 
 // --- Rendering Helpers ---
 
 /// Renders the header row with column titles.
 pub fn render_header(f: &mut Frame, area: Rect) {
-    // Split the header row area horizontally like the data rows (60% text, 20% Rx, 20% Tx)
-    // This ensures the header titles align with the data columns below.
-    let header_row_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(60), // Text area for header titles
-            Constraint::Percentage(20), // Empty space corresponding to Rx chart area
-            Constraint::Percentage(20), // Empty space corresponding to Tx chart area
-        ])
-        .split(area); // Split the entire header row area
-
-    let header_text_area = header_row_chunks[0]; // The 60% area where titles will go
-
-    // Split the header text area into columns using the defined constraints
+    // Split the entire header area into columns using the unified constraints
     let header_column_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints(COLUMN_CONSTRAINTS) // Use the constant directly
-        .split(header_text_area);
+        .constraints(COLUMN_CONSTRAINTS) // Use the updated constant for all columns
+        .split(area);
 
     // Render each header title in its respective column chunk
     for (i, title) in HEADER_TITLES.iter().enumerate() {
-        // Ensure we only render titles into the actual title columns, not the spacer
-        if i < header_column_chunks.len() - 1 {
+        // Render text titles into the first 11 columns
+        if i < HEADER_TITLES.len() {
+            // Check against HEADER_TITLES length
             let title_paragraph = Paragraph::new(*title)
                 .style(HEADER_STYLE)
-                .alignment(Alignment::Left); // Align titles to the left within their columns
+                .alignment(Alignment::Left);
             f.render_widget(title_paragraph, header_column_chunks[i]);
         }
     }
 
     // Render Rx title in the second chunk (chart area)
+    // Render Rx title in the 12th column chunk (index 11)
     let rx_title_paragraph = Paragraph::new("Rx")
         .style(HEADER_STYLE)
-        .alignment(Alignment::Center); // Center align the title
-    f.render_widget(rx_title_paragraph, header_row_chunks[1]);
+        .alignment(Alignment::Center);
+    f.render_widget(rx_title_paragraph, header_column_chunks[11]);
 
-    // Render Tx title in the third chunk (chart area)
+    // Render Tx title in the 13th column chunk (index 12)
     let tx_title_paragraph = Paragraph::new("Tx")
         .style(HEADER_STYLE)
-        .alignment(Alignment::Center); // Center align the title
-    f.render_widget(tx_title_paragraph, header_row_chunks[2]);
+        .alignment(Alignment::Center);
+    f.render_widget(tx_title_paragraph, header_column_chunks[12]);
 }
 
 /// Renders a single bandwidth chart (Rx or Tx) and its associated speed.
@@ -159,25 +151,16 @@ fn render_bandwidth_chart_and_speed(
 
 /// Renders a single node's data row, including text cells and bandwidth charts.
 pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &str) {
-    // Split row: Text | Rx Chart | Tx Chart
-    let row_content_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(60), // Text area
-            Constraint::Percentage(20), // Rx Chart + Speed area
-            Constraint::Percentage(20), // Tx Chart + Speed area
-        ])
-        .split(area);
-
-    let text_area = row_content_chunks[0];
-    let rx_area = row_content_chunks[1];
-    let tx_area = row_content_chunks[2];
-
-    // Split the text area into columns
+    // Split the entire row area using the unified constraints
     let column_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints(COLUMN_CONSTRAINTS) // Use the constant
-        .split(text_area);
+        .constraints(COLUMN_CONSTRAINTS) // Use the updated constant for all columns
+        .split(area);
+
+    // Assign areas based on the new layout
+    // Indices 0-10 are text columns
+    let rx_area = column_chunks[11]; // 12th column is Rx chart
+    let tx_area = column_chunks[12]; // 13th column is Tx chart
 
     // Get metrics and determine style + status
     let metrics_result = app.metrics.get(url);
@@ -200,17 +183,19 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
     };
 
     // Render each data cell in its column chunk
+    // Render each data cell in its corresponding column chunk (first 11 columns)
+    // Note: data_cells contains 11 items (including name)
     for (idx, cell_text) in data_cells.iter().enumerate() {
-        if idx < column_chunks.len() - 1 {
-            // Ensure we don't overwrite status column index (or spacer)
+        // Render into columns 0 through 10 (inclusive)
+        if idx < 11 {
             let cell_paragraph = Paragraph::new(cell_text.clone()).style(DATA_CELL_STYLE);
             f.render_widget(cell_paragraph, column_chunks[idx]);
         }
     }
 
-    // Render status in the dedicated status column chunk (index 10)
+    // Render status in the 11th column chunk (index 10)
     let status_paragraph = Paragraph::new(format!("{:<10}", status_text)).style(style); // Pad status
-    f.render_widget(status_paragraph, column_chunks[10]);
+    f.render_widget(status_paragraph, column_chunks[10]); // Status is still index 10
 
     // --- Render Separate Rx/Tx Charts ---
     let (chart_data_in, chart_data_out, speed_in, speed_out) = metrics_result
