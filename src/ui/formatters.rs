@@ -75,10 +75,10 @@ pub fn create_list_item_cells(name: &str, metrics: &NodeMetrics) -> Vec<String> 
 
     // Format values according to HEADER widths and push to vector
     vec![
-        format!("{:<18}", name),                                         // Node
-        format!("{:<12}", format_uptime(metrics.uptime_seconds)),        // Uptime
-        format!("{:<6}", format_float(metrics.memory_used_mb, 0)),       // Mem MB
-        format!("{:<5}", format_float(metrics.cpu_usage_percentage, 0)), // CPU %
+        format!("{:<18}", name),                                          // Node
+        format!("{:<12}", format_uptime(metrics.uptime_seconds)),         // Uptime
+        format!("{:<6}MB", format_float(metrics.memory_used_mb, 1)),      // Mem MB
+        format!("{:<5}%", format_float(metrics.cpu_usage_percentage, 1)), // CPU %
         format!(
             "{:<7}",
             format_peers(
