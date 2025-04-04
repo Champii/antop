@@ -36,20 +36,23 @@ const DATA_CELL_STYLE: Style = Style::new().fg(Color::Gray); // Use Style::new()
 // These must match the constraints used for data rows
 // Define column widths including charts for even distribution
 // 11 text columns + 2 chart columns = 13 total
-pub const COLUMN_CONSTRAINTS: [Constraint; 13] = [
-    Constraint::Ratio(1, 19), // Node
-    Constraint::Ratio(1, 19), // Uptime
-    Constraint::Ratio(1, 19), // Mem MB
-    Constraint::Ratio(1, 19), // CPU %
-    Constraint::Ratio(1, 19), // Peers
-    Constraint::Ratio(1, 19), // BW In
-    Constraint::Ratio(1, 19), // BW Out
-    Constraint::Ratio(1, 19), // Records
-    Constraint::Ratio(1, 19), // Reward
-    Constraint::Ratio(1, 19), // Err
-    Constraint::Ratio(1, 19), // Status
-    Constraint::Ratio(4, 19), // Rx Chart Area - Now 4x proportional
-    Constraint::Ratio(4, 19), // Tx Chart Area - Now 4x proportional
+// Define column widths including charts for even distribution + gap
+// 11 text columns + 1 gap column + 2 chart columns = 14 total
+pub const COLUMN_CONSTRAINTS: [Constraint; 14] = [
+    Constraint::Ratio(1, 19), // 0: Node
+    Constraint::Ratio(1, 19), // 1: Uptime
+    Constraint::Ratio(1, 19), // 2: Mem MB
+    Constraint::Ratio(1, 19), // 3: CPU %
+    Constraint::Ratio(1, 19), // 4: Peers
+    Constraint::Ratio(1, 19), // 5: BW In
+    Constraint::Ratio(1, 19), // 6: BW Out
+    Constraint::Ratio(1, 19), // 7: Records
+    Constraint::Ratio(1, 19), // 8: Reward
+    Constraint::Length(1),    // 9: << Gap >>
+    Constraint::Ratio(1, 19), // 10: Err (was 9)
+    Constraint::Ratio(1, 19), // 11: Status (was 10)
+    Constraint::Ratio(4, 19), // 12: Rx Chart Area (was 11)
+    Constraint::Ratio(4, 19), // 13: Tx Chart Area (was 12)
 ];
 
 // --- Rendering Helpers ---
@@ -62,21 +65,25 @@ pub fn render_header(f: &mut Frame, area: Rect) {
         .constraints(COLUMN_CONSTRAINTS) // Use the updated constant for all columns
         .split(area);
 
-    // Render each header title in its respective column chunk
+    // Render each header title in its respective column chunk, accounting for the gap
     for (i, title) in HEADER_TITLES.iter().enumerate() {
-        // Render text titles into the first 11 columns
-        if i < HEADER_TITLES.len() {
-            // Check against HEADER_TITLES length
-            let alignment = if i == 4 || i == 5 || i == 6 || i == 7 || i == 8 {
-                // Indices for "Peers", "Total In", "Total Out", "Recs", "Rwds"
-                Alignment::Right
-            } else {
+        // Determine the correct chunk index, skipping the gap column (index 9)
+        let chunk_index = if i <= 8 {
+            i // Node (0) to Rwds (8) map directly
+        } else {
+            i + 1 // Err (9) maps to chunk 10, Status (10) maps to chunk 11
+        };
+
+        if chunk_index < header_column_chunks.len() {
+            let alignment = if i == 0 {
                 Alignment::Left
+            } else {
+                Alignment::Right
             };
             let title_paragraph = Paragraph::new(*title)
                 .style(HEADER_STYLE)
                 .alignment(alignment);
-            f.render_widget(title_paragraph, header_column_chunks[i]);
+            f.render_widget(title_paragraph, header_column_chunks[chunk_index]);
         }
     }
 
@@ -85,13 +92,13 @@ pub fn render_header(f: &mut Frame, area: Rect) {
     let rx_title_paragraph = Paragraph::new("Rx")
         .style(HEADER_STYLE)
         .alignment(Alignment::Center);
-    f.render_widget(rx_title_paragraph, header_column_chunks[11]);
+    f.render_widget(rx_title_paragraph, header_column_chunks[12]); // Shifted due to gap
 
     // Render Tx title in the 13th column chunk (index 12)
     let tx_title_paragraph = Paragraph::new("Tx")
         .style(HEADER_STYLE)
         .alignment(Alignment::Center);
-    f.render_widget(tx_title_paragraph, header_column_chunks[12]);
+    f.render_widget(tx_title_paragraph, header_column_chunks[13]); // Shifted due to gap
 }
 
 /// Renders a single bandwidth chart (Rx or Tx) and its associated speed.
@@ -165,8 +172,9 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
 
     // Assign areas based on the new layout
     // Indices 0-10 are text columns
-    let rx_area = column_chunks[11]; // 12th column is Rx chart
-    let tx_area = column_chunks[12]; // 13th column is Tx chart
+    // Indices 0-8, 10-11 are text columns (index 9 is the gap)
+    let rx_area = column_chunks[12]; // 13th column is Rx chart (was 11)
+    let tx_area = column_chunks[13]; // 14th column is Tx chart (was 12)
 
     // Get metrics and determine style + status
     let metrics_result = app.metrics.get(url);
@@ -191,25 +199,33 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
     // Render each data cell in its column chunk
     // Render each data cell in its corresponding column chunk (first 11 columns)
     // Note: data_cells contains 11 items (including name)
+    // Render each data cell in its corresponding column chunk, accounting for the gap
+    // Note: data_cells contains 11 items (matching HEADER_TITLES)
     for (idx, cell_text) in data_cells.iter().enumerate() {
-        // Render into columns 0 through 10 (inclusive)
-        if idx < 11 {
-            let alignment = if idx == 4 || idx == 5 || idx == 6 || idx == 7 || idx == 8 {
-                // Indices for "Peers", "Total In", "Total Out", "Recs", "Rwds"
-                Alignment::Right
-            } else {
-                Alignment::Left // Explicitly set left for others
-            };
+        // Determine the correct chunk index, skipping the gap column (index 9)
+        let chunk_index = if idx <= 8 {
+            idx // Node (0) to Rwds (8) map directly
+        } else {
+            idx + 1 // Err (9) maps to chunk 10, Status (10) maps to chunk 11
+        };
+
+        if chunk_index < 12 {
+            let alignment = Alignment::Right;
             let cell_paragraph = Paragraph::new(cell_text.clone())
                 .style(DATA_CELL_STYLE)
                 .alignment(alignment);
-            f.render_widget(cell_paragraph, column_chunks[idx]);
+            f.render_widget(cell_paragraph, column_chunks[chunk_index]);
         }
     }
 
     // Render status in the 11th column chunk (index 10)
+    // Status text is the 11th item in data_cells (index 10), rendered into chunk 11
+    // No need to render it separately anymore as the loop above handles it.
+    // We can remove these lines if status is already included in data_cells.
+    // Let's double-check formatters.rs to confirm if status is part of data_cells.
+    // Assuming status is NOT part of data_cells and needs separate rendering:
     let status_paragraph = Paragraph::new(format!("{:<10}", status_text)).style(style); // Pad status
-    f.render_widget(status_paragraph, column_chunks[10]); // Status is still index 10
+    f.render_widget(status_paragraph, column_chunks[11]); // Status is now index 11
 
     // --- Render Separate Rx/Tx Charts ---
     let (chart_data_in, chart_data_out, speed_in, speed_out) = metrics_result
