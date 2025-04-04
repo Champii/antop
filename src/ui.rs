@@ -211,7 +211,17 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
 
     // Render Header Titles into Columns
     let header_titles = [
-        "Node", "Uptime", "Mem", "CPU", "Peers", "BW In", "BW Out", "Recs", "Rwds", "Err", "Status",
+        "Node",
+        "Uptime",
+        "Mem",
+        "CPU",
+        "Peers",
+        "Total In",
+        "Total Out",
+        "Recs",
+        "Rwds",
+        "Err",
+        "Status", // Changed BW headers
     ];
     let header_style = Style::default().fg(Color::Yellow);
 
@@ -272,15 +282,15 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
         let row_content_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Percentage(70), // Text area
-                Constraint::Percentage(15), // Rx Chart area
-                Constraint::Percentage(15), // Tx Chart area
+                Constraint::Percentage(60), // Text area (reduced)
+                Constraint::Percentage(20), // Rx Chart + Speed area (increased)
+                Constraint::Percentage(20), // Tx Chart + Speed area (increased)
             ])
             .split(row_area);
 
         let text_area = row_content_chunks[0];
-        let rx_chart_area = row_content_chunks[1];
-        let tx_chart_area = row_content_chunks[2];
+        let rx_area = row_content_chunks[1]; // Renamed for clarity
+        let tx_area = row_content_chunks[2]; // Renamed for clarity
 
         // The rx_chart_area and tx_chart_area will hold the separate charts.
 
@@ -374,15 +384,26 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
         let chart_data_out = metrics_result
             .and_then(|res| res.as_ref().ok().and_then(|m| m.chart_data_out.as_deref()));
 
-        // --- Render Rx Chart ---
+        // --- Render Rx Chart and Speed ---
+        let rx_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)]) // Split Rx area: 70% chart, 30% speed
+            .split(rx_area);
+        let rx_chart_area = rx_chunks[0];
+        let rx_speed_area = rx_chunks[1];
+
+        let current_rx_speed = metrics_result
+            .and_then(|res| res.as_ref().ok().map(|m| m.speed_in_bps))
+            .flatten(); // Get Option<f64>
+
         if let Some(data_in) = chart_data_in.filter(|d| d.len() >= 2) {
             let rx_max_len = data_in.len();
             let rx_max_y = data_in
                 .iter()
                 .map(|&(_, y)| y)
-                .fold(0.0f64, |max, y| max.max(y)); // Start fold with 0.0
+                .fold(0.0f64, |max, y| max.max(y));
             let rx_x_bounds = [0.0, (rx_max_len.saturating_sub(1)).max(1) as f64];
-            let rx_y_bounds = [0.0, rx_max_y.max(1.0)]; // Ensure lower bound is 0, upper at least 1.0
+            let rx_y_bounds = [0.0, rx_max_y.max(1.0)];
 
             let rx_dataset = Dataset::default()
                 .name("Rx")
@@ -392,38 +413,54 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
                 .data(data_in);
 
             let rx_chart = Chart::new(vec![rx_dataset])
-                // .block(ratatui::widgets::Block::default().title("Bandwidth In (Rx)")) // Add title
                 .x_axis(
                     Axis::default()
                         .style(Style::default().fg(Color::DarkGray))
                         .bounds(rx_x_bounds)
-                        .labels::<Vec<Line<'_>>>(vec![]), // Hide X labels
+                        .labels::<Vec<Line<'_>>>(vec![]),
                 )
                 .y_axis(
                     Axis::default()
                         .style(Style::default().fg(Color::DarkGray))
                         .bounds(rx_y_bounds)
-                        .labels::<Vec<Line<'_>>>(vec![]) // Hide Y labels
-                        .labels_alignment(Alignment::Right),
+                        .labels::<Vec<Line<'_>>>(vec![]),
                 );
-            f.render_widget(rx_chart, rx_chart_area);
+            f.render_widget(rx_chart, rx_chart_area); // Render chart in its sub-area
+
+            // Render current Rx speed next to the chart
+            let speed_text = format_speed_bps(current_rx_speed);
+            let speed_paragraph = Paragraph::new(speed_text)
+                .style(style) // Use the same style as the row data
+                .alignment(Alignment::Left); // Align speed to the left
+            f.render_widget(speed_paragraph, rx_speed_area);
         } else {
-            // Placeholder for Rx chart
-            let placeholder = Paragraph::new("BW In (N/A)")
+            // Placeholder for Rx chart area
+            let placeholder = Paragraph::new("Rx N/A")
                 .style(Style::default().fg(Color::DarkGray))
                 .alignment(Alignment::Center);
-            f.render_widget(placeholder, rx_chart_area);
+            f.render_widget(placeholder, rx_area); // Use the whole rx_area for placeholder
         }
 
-        // --- Render Tx Chart ---
+        // --- Render Tx Chart and Speed ---
+        let tx_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([Constraint::Percentage(70), Constraint::Percentage(30)]) // Split Tx area: 70% chart, 30% speed
+            .split(tx_area);
+        let tx_chart_area = tx_chunks[0];
+        let tx_speed_area = tx_chunks[1];
+
+        let current_tx_speed = metrics_result
+            .and_then(|res| res.as_ref().ok().map(|m| m.speed_out_bps))
+            .flatten(); // Get Option<f64>
+
         if let Some(data_out) = chart_data_out.filter(|d| d.len() >= 2) {
             let tx_max_len = data_out.len();
             let tx_max_y = data_out
                 .iter()
                 .map(|&(_, y)| y)
-                .fold(0.0f64, |max, y| max.max(y)); // Start fold with 0.0
+                .fold(0.0f64, |max, y| max.max(y));
             let tx_x_bounds = [0.0, (tx_max_len.saturating_sub(1)).max(1) as f64];
-            let tx_y_bounds = [0.0, tx_max_y.max(1.0)]; // Ensure lower bound is 0, upper at least 1.0
+            let tx_y_bounds = [0.0, tx_max_y.max(1.0)];
 
             let tx_dataset = Dataset::default()
                 .name("Tx")
@@ -433,27 +470,32 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
                 .data(data_out);
 
             let tx_chart = Chart::new(vec![tx_dataset])
-                // .block(ratatui::widgets::Block::default().title("Bandwidth Out (Tx)")) // Add title
                 .x_axis(
                     Axis::default()
                         .style(Style::default().fg(Color::DarkGray))
                         .bounds(tx_x_bounds)
-                        .labels::<Vec<Line<'_>>>(vec![]), // Hide X labels
+                        .labels::<Vec<Line<'_>>>(vec![]),
                 )
                 .y_axis(
                     Axis::default()
                         .style(Style::default().fg(Color::DarkGray))
                         .bounds(tx_y_bounds)
-                        .labels::<Vec<Line<'_>>>(vec![]) // Hide Y labels
-                        .labels_alignment(Alignment::Right),
+                        .labels::<Vec<Line<'_>>>(vec![]),
                 );
-            f.render_widget(tx_chart, tx_chart_area);
+            f.render_widget(tx_chart, tx_chart_area); // Render chart in its sub-area
+
+            // Render current Tx speed next to the chart
+            let speed_text = format_speed_bps(current_tx_speed);
+            let speed_paragraph = Paragraph::new(speed_text)
+                .style(style) // Use the same style as the row data
+                .alignment(Alignment::Left); // Align speed to the left
+            f.render_widget(speed_paragraph, tx_speed_area);
         } else {
-            // Placeholder for Tx chart
-            let placeholder = Paragraph::new("BW Out (N/A)")
+            // Placeholder for Tx chart area
+            let placeholder = Paragraph::new("Tx N/A")
                 .style(Style::default().fg(Color::DarkGray))
                 .alignment(Alignment::Center);
-            f.render_widget(placeholder, tx_chart_area);
+            f.render_widget(placeholder, tx_area); // Use the whole tx_area for placeholder
         }
     }
 } // End of render_custom_node_rows
@@ -550,11 +592,18 @@ fn create_list_item_cells(name: &str, metrics: &NodeMetrics) -> Vec<String> {
                 metrics.peers_in_routing_table.map(|v| v as u32)
             )
         ), // Peers
-        format!("{:<10}", format_speed_bps(metrics.speed_in_bps)),       // BW In
-        format!("{:<10}", format_speed_bps(metrics.speed_out_bps)),      // BW Out
-        format!("{:<7}", format_option(metrics.records_stored)),         // Records
-        format!("{:<8}", format_option(metrics.reward_wallet_balance)),  // Reward
-        format!("{:<4}", total_errors),                                  // Err
-                                                                         // Status is handled separately in render_custom_node_rows
+        // Use total bytes (bandwidth_..._bytes) and format_option_u64_bytes instead of current speed
+        format!(
+            "{:<10}",
+            format_option_u64_bytes(metrics.bandwidth_inbound_bytes)
+        ), // Total In
+        format!(
+            "{:<10}",
+            format_option_u64_bytes(metrics.bandwidth_outbound_bytes)
+        ), // Total Out
+        format!("{:<7}", format_option(metrics.records_stored)), // Records
+        format!("{:<8}", format_option(metrics.reward_wallet_balance)), // Reward
+        format!("{:<4}", total_errors),                          // Err
+                                                                 // Status is handled separately in render_custom_node_rows
     ]
 }
