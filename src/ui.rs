@@ -13,12 +13,13 @@ use crossterm::{
 };
 use humansize::{DECIMAL, format_size}; // Re-added for BW formatting
 use ratatui::{
-    Frame, Terminal,
+    Frame,
+    Terminal,
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     text::Text,
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
+    widgets::{Block, Borders, Cell, Paragraph, Row, Sparkline, Table}, // Added Sparkline
 };
 use std::{
     io::{self, Stdout},
@@ -174,6 +175,24 @@ fn ui(f: &mut Frame, app: &mut App) {
     f.render_widget(status, chunks[2]);
 }
 
+// Helper function to calculate column offsets based on constraints
+fn get_column_offsets(constraints: &[Constraint]) -> Vec<u16> {
+    let mut offsets = Vec::with_capacity(constraints.len() + 1);
+    let mut current_offset = 0;
+    offsets.push(current_offset);
+    for constraint in constraints {
+        // This is a simplification; assumes fixed Length constraints for calculating
+        // sparkline positions. More robust calculation might be needed for complex layouts.
+        let width = match *constraint {
+            Constraint::Length(w) | Constraint::Min(w) | Constraint::Max(w) => w, // Approximate width
+            _ => 10, // Default guess for Percent/Ratio etc.
+        };
+        current_offset += width;
+        offsets.push(current_offset);
+    }
+    offsets
+}
+
 fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
     let header_cells = [
         "Server",
@@ -200,9 +219,6 @@ fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
         )
     });
     let header = Row::new(header_cells).height(1).bottom_margin(1);
-
-    // Sort addresses for consistent display order
-    // app.server_addresses.sort(); // Ensure addresses are sorted before rendering
 
     // Iterate over (name, url) pairs
     let rows = app.servers.iter().map(|(name, url)| {
@@ -232,22 +248,79 @@ fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
         Constraint::Length(8),  // RT Peers
         Constraint::Length(12), // BW In
         Constraint::Length(12), // BW Out
-        Constraint::Length(10), // Speed In
-        Constraint::Length(10), // Speed Out
+        Constraint::Length(25), // Speed In
+        Constraint::Length(25), // Speed Out
         Constraint::Length(10), // Records
         Constraint::Length(10), // Rewards
         Constraint::Length(8),  // Err (New)
         Constraint::Min(10),    // Status (Restored, flexible width)
     ];
 
+    let table_block = Block::default().borders(Borders::ALL).title("Metrics");
+    let table_inner_area = table_block.inner(area); // Area inside the block borders
+
     let table = Table::new(rows, &constraints) // Pass constraints reference
         .header(header)
-        .block(Block::default().borders(Borders::ALL).title("Metrics"))
+        .block(table_block) // Use the defined block
         .widths(&constraints)
         .flex(ratatui::layout::Flex::Center);
 
     // Use TableState for potential future scrolling
     f.render_stateful_widget(table, area, &mut app.table_state);
+
+    // --- Render Sparklines Over the Table ---
+    // This needs to happen *after* the table is rendered.
+
+    let header_height = 2; // Calculated from header row definition (height 1 + margin 1)
+    let col_offsets = get_column_offsets(&constraints);
+    let speed_in_col_index = 8; // Index of "Speed In"
+    let speed_out_col_index = 9; // Index of "Speed Out"
+
+    // Ensure we have offsets for the required columns
+    if col_offsets.len() > speed_out_col_index + 1 {
+        let speed_in_x = table_inner_area.x + col_offsets[speed_in_col_index];
+        let speed_in_width = col_offsets[speed_in_col_index + 1] - col_offsets[speed_in_col_index];
+        let speed_out_x = table_inner_area.x + col_offsets[speed_out_col_index];
+        let speed_out_width =
+            col_offsets[speed_out_col_index + 1] - col_offsets[speed_out_col_index];
+
+        for (row_index, (_name, url)) in app.servers.iter().enumerate() {
+            let row_y = table_inner_area.y + header_height + row_index as u16;
+
+            // Check if row is within the visible table area
+            if row_y >= table_inner_area.bottom() {
+                break; // Stop drawing if rows go beyond the visible area
+            }
+
+            // Get history data, provide empty slice if not found
+            let history_in = app
+                .speed_in_history
+                .get(url)
+                .map(|d| d.as_slices().0)
+                .unwrap_or(&[]);
+            let history_out = app
+                .speed_out_history
+                .get(url)
+                .map(|d| d.as_slices().0)
+                .unwrap_or(&[]);
+
+            // Create Sparkline widgets
+            let sparkline_in = Sparkline::default()
+                .data(history_in)
+                .style(Style::default().fg(Color::LightCyan));
+            let sparkline_out = Sparkline::default()
+                .data(history_out)
+                .style(Style::default().fg(Color::LightMagenta));
+
+            // Define the Rect for each sparkline
+            let sparkline_in_area = Rect::new(speed_in_x, row_y, speed_in_width, 1);
+            let sparkline_out_area = Rect::new(speed_out_x, row_y, speed_out_width, 1);
+
+            // Render the sparklines directly onto the frame in the calculated areas
+            f.render_widget(sparkline_in, sparkline_in_area);
+            f.render_widget(sparkline_out, sparkline_out_area);
+        }
+    }
 }
 
 // --- UI Helper Functions ---
