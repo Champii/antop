@@ -13,13 +13,12 @@ use crossterm::{
 };
 use humansize::{DECIMAL, format_size}; // Re-added for BW formatting
 use ratatui::{
-    Frame,
-    Terminal, // Removed Block, Borders
+    Frame, Terminal,
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Style},
     symbols,
-    text::Line,
+    text::{Line, Text},
     widgets::{Axis, Chart, Dataset, GraphType, Paragraph},
 };
 use std::{
@@ -167,7 +166,8 @@ fn ui(f: &mut Frame, app: &mut App) {
 
     let title = Paragraph::new(
         "Autonomi Node Dashboard | Press 'q' to quit | Use Up/Down keys to select node for chart",
-    );
+    )
+    .style(Style::default().fg(Color::White));
     f.render_widget(title, main_chunks[0]); // Use main_chunks[0]
 
     // Render the custom node rows in the main content area
@@ -342,7 +342,7 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
                 (
                     cells,
                     Style::default().fg(Color::Yellow),
-                    "Error".to_string(),
+                    "Stopped".to_string(),
                 ) // Changed status text
             }
             None => {
@@ -437,7 +437,7 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
             f.render_widget(speed_paragraph, rx_speed_area);
         } else {
             // Placeholder for Rx chart area
-            let placeholder = Paragraph::new("Rx N/A")
+            let placeholder = Paragraph::new("-")
                 .style(Style::default().fg(Color::DarkGray))
                 .alignment(Alignment::Center);
             f.render_widget(placeholder, rx_area); // Use the whole rx_area for placeholder
@@ -494,7 +494,7 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
             f.render_widget(speed_paragraph, tx_speed_area);
         } else {
             // Placeholder for Tx chart area
-            let placeholder = Paragraph::new("Tx N/A")
+            let placeholder = Paragraph::new("-")
                 .style(Style::default().fg(Color::DarkGray))
                 .alignment(Alignment::Center);
             f.render_widget(placeholder, tx_area); // Use the whole tx_area for placeholder
