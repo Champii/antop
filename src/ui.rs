@@ -214,8 +214,8 @@ fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
                 Style::default().fg(Color::Yellow),
             ), // Pass name, Yellow for Stopped/Fetch Error row
             None => (
-                create_error_cells(name, "Stopped/Missing"), // More descriptive text
-                Style::default().fg(Color::Yellow),          // Yellow for Stopped/Missing row
+                create_error_cells(name, "Stopped"), // More descriptive text
+                Style::default().fg(Color::Yellow),  // Yellow for Stopped/Missing row
             ), // Pass name
         };
         Row::new(cells).style(row_style)
