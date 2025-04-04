@@ -19,7 +19,7 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect}, // Added Margin
     style::{Color, Style},
     symbols,
-    text::{Line, Span, Text}, // Added Line for Axis titles
+    text::{Line, Span}, // Added Line for Axis titles
     widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, Paragraph}, // Added Chart widgets
 };
 use std::{
@@ -27,6 +27,10 @@ use std::{
     time::Duration,
 };
 use tokio::time::interval;
+
+// Header definition for the node list
+const HEADER: &str = "Node              | Uptime       | Mem MB | CPU % | Peers   | BW In      | BW Out     | Records | Reward   | Err  | Status  ";
+// Widths:         18             | 12           | 6      | 5     | 7       | 10         | 10         | 7       | 8        | 4    | 8
 
 // --- TUI Setup and Restore ---
 
@@ -184,17 +188,15 @@ fn ui(f: &mut Frame, app: &mut App) {
 
 fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
     let outer_block = Block::default().borders(Borders::ALL).title("Nodes");
-    f.render_widget(outer_block, area); // Render the block first to draw borders
+    f.render_widget(outer_block, area); // Render the block first
 
     let inner_area = area.inner(Margin {
-        // Use Margin directly, remove '&' and full path
         vertical: 1,
         horizontal: 1,
-    }); // Area inside the block borders
+    }); // Area inside borders
 
     let num_servers = app.servers.len();
     if num_servers == 0 {
-        // Handle case with no servers gracefully
         let no_servers_text = Paragraph::new("No servers discovered yet...")
             .style(Style::default().fg(Color::DarkGray))
             .alignment(Alignment::Center);
@@ -202,23 +204,28 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
         return;
     }
 
-    // Define constraints for each row. Each row gets equal height for now.
-    // We might need a more dynamic height later if charts have variable height.
-    let row_constraints = std::iter::repeat(Constraint::Ratio(1, num_servers as u32))
-        .take(num_servers)
-        .collect::<Vec<_>>();
+    // Layout: Header row + one row per server
+    let mut constraints = vec![Constraint::Length(1)]; // Header row
+    constraints.extend(std::iter::repeat(Constraint::Length(1)).take(num_servers)); // Data rows
 
-    // Create a vertical layout for the rows within the inner area
-    let row_chunks = Layout::default()
+    let vertical_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .constraints(row_constraints)
+        .constraints(constraints)
         .split(inner_area);
 
-    // Iterate through servers and render each row
-    for (i, (name, url)) in app.servers.iter().enumerate() {
-        let row_area = row_chunks[i];
+    // Render Header
+    let header_paragraph = Paragraph::new(HEADER) // Use the HEADER constant
+        .style(Style::default().fg(Color::Yellow)); // Style for header
+    f.render_widget(header_paragraph, vertical_chunks[0]);
 
-        // Split the row area horizontally: Text | Chart Placeholder
+    // Render Data Rows (starting from index 1)
+    for (i, (name, url)) in app.servers.iter().enumerate() {
+        if i + 1 >= vertical_chunks.len() {
+            continue;
+        } // Bounds check
+        let row_area = vertical_chunks[i + 1]; // Use chunks starting from 1
+
+        // Split row: Text | Chart Placeholder (remains the same)
         let row_content_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
@@ -230,53 +237,60 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
         let text_area = row_content_chunks[0];
         let chart_placeholder_area = row_content_chunks[1];
 
-        // Get metrics and determine style
+        // Get metrics and determine style (remains the same)
         let metrics_result = app.metrics.get(url);
-        let (text, style) = match metrics_result {
+        let (text, style, status_text) = match metrics_result {
             Some(Ok(metrics)) => (
-                create_list_item_text(name, metrics), // Use existing helper
+                create_list_item_text(name, metrics), // Use updated helper
                 Style::default().fg(Color::Green),
+                "Running".to_string(),
             ),
             Some(Err(_)) => (
-                format!("{:<20} | Status: Stopped", name),
+                // Format error state consistently with header
+                format!(
+                    "{:<18} | {:<12} | {:<6} | {:<5} | {:<7} | {:<10} | {:<10} | {:<7} | {:<8} | {:<4}",
+                    name, "-", "-", "-", "-", "-", "-", "-", "-", "-"
+                ),
                 Style::default().fg(Color::Yellow),
+                "Stopped".to_string(),
             ),
             None => (
-                format!("{:<20} | Status: Unknown", name),
+                // Format unknown state consistently with header
+                format!(
+                    "{:<18} | {:<12} | {:<6} | {:<5} | {:<7} | {:<10} | {:<10} | {:<7} | {:<8} | {:<4}",
+                    name, "-", "-", "-", "-", "-", "-", "-", "-", "-"
+                ),
                 Style::default().fg(Color::DarkGray),
+                "Unknown".to_string(),
             ),
         };
 
+        // Combine formatted data with status
+        let full_text = format!("{} | {:<8}", text, status_text);
+
         // Render the text part
-        let text_paragraph = Paragraph::new(text).style(style);
+        let text_paragraph = Paragraph::new(full_text).style(style);
         f.render_widget(text_paragraph, text_area);
 
-        // --- Render the Speed In Chart (using available pre-calculated data) ---
+        // Render the Speed In Chart (remains the same)
         let chart_data = match metrics_result {
-            Some(Ok(metrics)) => metrics.chart_data_in.as_deref(), // Get Option<&[(f64, f64)]>
-            _ => None, // No data if metrics failed or are None
+            Some(Ok(metrics)) => metrics.chart_data_in.as_deref(),
+            _ => None,
         };
 
         if let Some(data) = chart_data {
             if data.len() >= 2 {
-                // Only render if we have at least 2 points for a line
                 let datasets = vec![
                     Dataset::default()
                         .name("Speed In")
                         .marker(symbols::Marker::Braille)
                         .graph_type(GraphType::Line)
-                        .style(Style::default().fg(Color::Green)) // Use green for inbound
+                        .style(Style::default().fg(Color::Cyan)) // Changed color for visibility
                         .data(data),
                 ];
-
-                // Determine X-axis bounds based on the number of data points
-                // Data is already (index, value), so index is 0 to len-1
                 let x_bounds = [0.0, (data.len() - 1).max(1) as f64];
-
-                // Determine Y-axis bounds dynamically
                 let y_max = data.iter().map(|&(_, y)| y).fold(f64::NAN, f64::max);
-                let y_bounds = [0.0, y_max.max(1.0)]; // Ensure at least 1.0 height, handle NaN
-
+                let y_bounds = [0.0, y_max.max(1.0)];
                 let chart = Chart::new(datasets)
                     .block(
                         Block::default()
@@ -288,24 +302,18 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
                     )
                     .x_axis(
                         Axis::default()
-                            // .title(Line::from("Time ->").style(Style::default().fg(Color::Gray))) // Title often clutters small charts
                             .style(Style::default().fg(Color::DarkGray))
                             .bounds(x_bounds),
                     )
                     .y_axis(
                         Axis::default()
-                            .title(Line::from(" Bps").style(Style::default().fg(Color::Gray))) // Add space for alignment
+                            .title(Line::from(" Bps").style(Style::default().fg(Color::Gray)))
                             .style(Style::default().fg(Color::DarkGray))
-                            .bounds(y_bounds) // Use calculated Y bounds
-                            .labels(vec![
-                                Span::from("0"),                     // Start label
-                                Span::from(format!("{:.0}", y_max)), // Max label
-                            ]),
+                            .bounds(y_bounds)
+                            .labels(vec![Span::from("0"), Span::from(format!("{:.0}", y_max))]),
                     );
-
                 f.render_widget(chart, chart_placeholder_area);
             } else {
-                // Not enough data points, render placeholder
                 let placeholder = Block::default().borders(Borders::LEFT).title(Span::styled(
                     "Speed In (no data)",
                     Style::default().fg(Color::DarkGray),
@@ -313,7 +321,6 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
                 f.render_widget(placeholder, chart_placeholder_area);
             }
         } else {
-            // No metrics available (error or initial state), render placeholder
             let placeholder = Block::default().borders(Borders::LEFT).title(Span::styled(
                 "Speed In (N/A)",
                 Style::default().fg(Color::DarkGray),
@@ -362,6 +369,17 @@ fn format_float(opt: Option<f64>, precision: usize) -> String {
         None => "-".to_string(),
     }
 }
+
+// Helper to format peer counts concisely
+fn format_peers(connected: Option<u32>, total: Option<u32>) -> String {
+    match (connected, total) {
+        (Some(c), Some(t)) => format!("{}/{}", c, t),
+        (Some(c), None) => format!("{}/-", c),
+        (None, Some(t)) => format!("-/{}", t),
+        (None, None) => "-".to_string(),
+    }
+}
+
 // Helper to format Option<u64> with thousands separators
 // Helper to format Option<u64> bytes into human-readable size (KB, MB, GB)
 fn format_option_u64_bytes(opt: Option<u64>) -> String {
@@ -382,30 +400,31 @@ fn format_speed_bps(speed_bps: Option<f64>) -> String {
     }
 }
 
-// Helper to create the formatted string for a list item with metrics data
+// Helper to create the formatted data string (without labels) for a list item
 fn create_list_item_text(name: &str, metrics: &NodeMetrics) -> String {
-    // Calculate total errors
+    // Calculate total errors (remains the same)
     let put_err = metrics.put_record_errors.unwrap_or(0);
     let conn_in_err = metrics.incoming_connection_errors.unwrap_or(0);
     let conn_out_err = metrics.outgoing_connection_errors.unwrap_or(0);
     let kad_err = metrics.kad_get_closest_peers_errors.unwrap_or(0);
     let total_errors = put_err + conn_in_err + conn_out_err + kad_err;
 
-    // Format into a single line, adjust spacing as needed
-    // Shorten the list item format slightly to fit better with the chart layout
+    // Format values according to HEADER widths, without labels
     format!(
-        "{:<18} | Up: {:<10} | Mem: {:<5} | CPU: {:<4}% | Peers: {:<2}/{:<2} | BW In: {:<8} | BW Out: {:<8} | Rec: {:<5} | Rew: {:<7} | Err: {:<3} | Running",
+        "{:<18} | {:<12} | {:<6} | {:<5} | {:<7} | {:<10} | {:<10} | {:<7} | {:<8} | {:<4}",
         name,
         format_uptime(metrics.uptime_seconds),
-        format_float(metrics.memory_used_mb, 0), // Less precision for mem
-        format_float(metrics.cpu_usage_percentage, 0), // Less precision for cpu
-        format_option(metrics.connected_peers),
-        format_option(metrics.peers_in_routing_table),
-        format_option_u64_bytes(metrics.bandwidth_inbound_bytes),
-        format_option_u64_bytes(metrics.bandwidth_outbound_bytes),
-        // Speed is now shown in the chart
+        format_float(metrics.memory_used_mb, 0),
+        format_float(metrics.cpu_usage_percentage, 0),
+        format_peers(
+            metrics.connected_peers.map(|v| v as u32),
+            metrics.peers_in_routing_table.map(|v| v as u32)
+        ), // Use new helper
+        format_speed_bps(metrics.speed_in_bps), // Use speed formatter
+        format_speed_bps(metrics.speed_out_bps), // Use speed formatter
         format_option(metrics.records_stored),
-        format_option(metrics.reward_wallet_balance),
+        format_option(metrics.reward_wallet_balance), // Assuming balance is simple number or '-'
         total_errors,
+        // Status ("Running") is handled in render_custom_node_rows
     )
 }
