@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use clap::Parser;
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
@@ -24,6 +25,15 @@ use std::{
     time::{Duration, Instant},
 };
 use tokio::time::interval;
+
+
+#[derive(Parser, Debug)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    /// Optional glob pattern for finding antnode log files (e.g., "/path/to/logs/**/*.log")
+    #[arg(long)]
+    logs: Option<String>,
+}
 
 // --- Existing Metrics Struct and Parsing Logic ---
 
@@ -125,12 +135,18 @@ fn parse_metrics(metrics_data: &str) -> NodeMetrics {
 // --- Existing Server Discovery and Fetching Logic ---
 
 /// Finds antnode log files and extracts the last reported metrics server address from each.
-fn find_metrics_servers() -> Result<Vec<String>> {
-    let home_dir = dirs::home_dir().context("Failed to get home directory")?;
-    let pattern_str = home_dir
-        .join(".local/share/autonomi/node/*/logs/antnode.log")
-        .to_string_lossy()
-        .to_string();
+/// Uses the provided `log_pattern_override` if Some, otherwise defaults to ~/.local/share/autonomi/node/*/logs/antnode.log
+fn find_metrics_servers(log_pattern_override: Option<&str>) -> Result<Vec<String>> {
+    let pattern_str = match log_pattern_override {
+        Some(pattern) => pattern.to_string(),
+        None => {
+            let home_dir = dirs::home_dir().context("Failed to get home directory")?;
+            home_dir
+                .join(".local/share/autonomi/node/*/logs/antnode.log")
+                .to_string_lossy()
+                .to_string()
+        }
+    };
 
     let re = Regex::new(r"Metrics server on (\S+)")?;
     let mut addresses = Vec::new();
@@ -273,8 +289,10 @@ fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Result
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    let cli = Cli::parse();
+
     // Initial server discovery
-    let initial_servers = match find_metrics_servers() {
+    let initial_servers = match find_metrics_servers(cli.logs.as_deref()) {
         Ok(servers) => {
             if servers.is_empty() {
                 eprintln!("Warning: No metrics servers found in logs. Waiting for discovery or manual config.");
@@ -296,7 +314,7 @@ async fn main() -> Result<()> {
 
     // Create app and run the main loop
     let app = App::new(initial_servers);
-    let res = run_app(&mut terminal, app).await;
+    let res = run_app(&mut terminal, app, &cli).await;
 
     // Restore terminal
     restore_terminal(&mut terminal)?;
@@ -309,7 +327,7 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result<()> {
+async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App, cli: &Cli) -> Result<()> {
     let mut tick_timer = interval(Duration::from_secs(1));
     let mut discover_timer = interval(Duration::from_secs(60)); // Check for new servers every 60s
 
@@ -333,7 +351,7 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result
             },
             _ = discover_timer.tick() => {
                  // Discover servers periodically
-                match find_metrics_servers() {
+                match find_metrics_servers(cli.logs.as_deref()) {
                     Ok(found_servers) => {
                         // Simple update: replace list and add new entries to map
                         // More sophisticated logic could handle removed servers
