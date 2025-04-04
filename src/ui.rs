@@ -18,8 +18,9 @@ use ratatui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Style},
+    symbols::Marker, // Added for Chart
     text::Text,
-    widgets::{Block, Borders, Cell, Paragraph, Row, Sparkline, Table}, // Added Sparkline
+    widgets::{Axis, Block, Borders, Cell, Chart, Dataset, GraphType, Paragraph, Row, Table}, // Added Chart etc, removed Sparkline
 };
 use std::{
     io::{self, Stdout},
@@ -268,7 +269,7 @@ fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
     // Use TableState for potential future scrolling
     f.render_stateful_widget(table, area, &mut app.table_state);
 
-    // --- Render Sparklines Over the Table ---
+    // --- Render Line Charts Over the Table ---
     // This needs to happen *after* the table is rendered.
 
     let header_height = 2; // Calculated from header row definition (height 1 + margin 1)
@@ -292,33 +293,88 @@ fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
                 break; // Stop drawing if rows go beyond the visible area
             }
 
-            // Get history data, provide empty slice if not found
-            let history_in = app
-                .speed_in_history
-                .get(url)
-                .map(|d| d.as_slices().0)
-                .unwrap_or(&[]);
-            let history_out = app
-                .speed_out_history
-                .get(url)
-                .map(|d| d.as_slices().0)
-                .unwrap_or(&[]);
+            // Get history data, provide empty VecDeque if not found or empty
+            let history_in_deque = app.speed_in_history.get(url);
+            let history_out_deque = app.speed_out_history.get(url);
 
-            // Create Sparkline widgets
-            let sparkline_in = Sparkline::default()
-                .data(history_in)
-                .style(Style::default().fg(Color::LightCyan));
-            let sparkline_out = Sparkline::default()
-                .data(history_out)
-                .style(Style::default().fg(Color::LightMagenta));
+            // Prepare data for charts
+            let data_in: Vec<(f64, f64)> = history_in_deque
+                .map(|d| {
+                    d.iter()
+                        .enumerate()
+                        .map(|(i, &v)| (i as f64, v as f64))
+                        .collect()
+                })
+                .unwrap_or_default();
+            let data_out: Vec<(f64, f64)> = history_out_deque
+                .map(|d| {
+                    d.iter()
+                        .enumerate()
+                        .map(|(i, &v)| (i as f64, v as f64))
+                        .collect()
+                })
+                .unwrap_or_default();
 
-            // Define the Rect for each sparkline
-            let sparkline_in_area = Rect::new(speed_in_x, row_y, speed_in_width, 1);
-            let sparkline_out_area = Rect::new(speed_out_x, row_y, speed_out_width, 1);
+            // Don't render chart if no data
+            if data_in.is_empty() && data_out.is_empty() {
+                continue;
+            }
 
-            // Render the sparklines directly onto the frame in the calculated areas
-            f.render_widget(sparkline_in, sparkline_in_area);
-            f.render_widget(sparkline_out, sparkline_out_area);
+            // Determine axis bounds dynamically
+            let max_y_in = data_in
+                .iter()
+                .map(|&(_, y)| y)
+                .fold(f64::NEG_INFINITY, f64::max);
+            let max_y_out = data_out
+                .iter()
+                .map(|&(_, y)| y)
+                .fold(f64::NEG_INFINITY, f64::max);
+
+            // Use the max of both In and Out for consistent Y scaling across both charts in a row
+            let max_y = max_y_in.max(max_y_out);
+            let y_bounds = [0.0, (max_y * 1.1).max(1.0)]; // Add padding, ensure minimum bound > 0
+
+            // Use history length for X bounds (assuming both histories have same length)
+            let history_len = history_in_deque.map(|d| d.len()).unwrap_or(0);
+            let x_bounds = [0.0, history_len.saturating_sub(1) as f64];
+
+            // Create Datasets
+            let dataset_in = Dataset::default()
+                .name("Speed In")
+                .marker(Marker::Braille)
+                .graph_type(GraphType::Line)
+                .style(Style::default().fg(Color::LightCyan))
+                .data(&data_in);
+
+            let dataset_out = Dataset::default()
+                .name("Speed Out")
+                .marker(Marker::Braille)
+                .graph_type(GraphType::Line)
+                .style(Style::default().fg(Color::LightMagenta))
+                .data(&data_out);
+
+            // Create Axes (minimal style for table cell)
+            let x_axis = Axis::default()
+                .style(Style::default().fg(Color::Gray))
+                .bounds(x_bounds);
+            let y_axis = Axis::default()
+                .style(Style::default().fg(Color::Gray))
+                .bounds(y_bounds);
+
+            // Create Charts
+            let chart_in = Chart::new(vec![dataset_in])
+                .x_axis(x_axis.clone()) // Clone x_axis as it's used twice
+                .y_axis(y_axis.clone()); // Clone y_axis
+
+            let chart_out = Chart::new(vec![dataset_out]).x_axis(x_axis).y_axis(y_axis);
+
+            // Define the Rect for each chart
+            let chart_in_area = Rect::new(speed_in_x, row_y, speed_in_width, 1);
+            let chart_out_area = Rect::new(speed_out_x, row_y, speed_out_width, 1);
+
+            // Render the charts directly onto the frame
+            f.render_widget(chart_in, chart_in_area);
+            f.render_widget(chart_out, chart_out_area);
         }
     }
 }
