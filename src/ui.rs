@@ -28,10 +28,6 @@ use std::{
 };
 use tokio::time::interval;
 
-// Header definition for the node list
-const HEADER: &str = "Node              | Uptime       | Mem MB | CPU % | Peers   | BW In      | BW Out     | Records | Reward   | Err  | Status  ";
-// Widths:         18             | 12           | 6      | 5     | 7       | 10         | 10         | 7       | 8        | 4    | 8
-
 // --- TUI Setup and Restore ---
 
 pub fn setup_terminal() -> Result<Terminal<CrosstermBackend<Stdout>>> {
@@ -213,10 +209,57 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
         .constraints(constraints)
         .split(inner_area);
 
-    // Render Header
-    let header_paragraph = Paragraph::new(HEADER) // Use the HEADER constant
-        .style(Style::default().fg(Color::Yellow)); // Style for header
-    f.render_widget(header_paragraph, vertical_chunks[0]);
+    // Render Header Titles into Columns
+    let header_titles = [
+        "Node", "Uptime", "Mem", "CPU", "Peers", "BW In", "BW Out", "Recs", "Rwds", "Err", "Status",
+    ];
+    let header_style = Style::default().fg(Color::Yellow);
+
+    // Define column widths based on header comment (line 33) + Status
+    // These must match the constraints used for data rows (lines 243-255)
+    let column_constraints = [
+        Constraint::Length(18), // Node
+        Constraint::Length(12), // Uptime
+        Constraint::Length(6),  // Mem MB
+        Constraint::Length(5),  // CPU %
+        Constraint::Length(7),  // Peers
+        Constraint::Length(10), // BW In
+        Constraint::Length(10), // BW Out
+        Constraint::Length(7),  // Records
+        Constraint::Length(8),  // Reward
+        Constraint::Length(6),  // Err
+        Constraint::Length(10), // Status
+        Constraint::Min(0),     // Spacer to fill text_area
+    ];
+
+    // Split the header row area (vertical_chunks[0]) horizontally like the data rows (70% text, 30% chart placeholder)
+    // This ensures the header titles align with the data columns below.
+    let header_row_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(70), // Text area for header titles
+            Constraint::Percentage(30), // Empty space corresponding to chart area
+        ])
+        .split(vertical_chunks[0]); // Split the entire header row area
+
+    let header_text_area = header_row_chunks[0]; // The 70% area where titles will go
+
+    // Split the header text area into columns using the defined constraints
+    let header_column_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(column_constraints.as_ref())
+        .split(header_text_area);
+
+    // Render each header title in its respective column chunk
+    for (i, title) in header_titles.iter().enumerate() {
+        // Ensure we only render titles into the actual title columns, not the spacer
+        if i < header_column_chunks.len() - 1 {
+            let title_paragraph = Paragraph::new(*title)
+                .style(header_style)
+                .alignment(Alignment::Left); // Align titles to the left within their columns
+            f.render_widget(title_paragraph, header_column_chunks[i]);
+        }
+    }
 
     // Render Data Rows (starting from index 1)
     for (i, (name, url)) in app.servers.iter().enumerate() {
@@ -250,8 +293,8 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
             Constraint::Length(10), // BW Out
             Constraint::Length(7),  // Records
             Constraint::Length(8),  // Reward
-            Constraint::Length(4),  // Err
-            Constraint::Length(8),  // Status
+            Constraint::Length(6),  // Err
+            Constraint::Length(10), // Status
             Constraint::Min(0),     // Spacer to fill text_area
         ];
         let column_chunks = Layout::default()
