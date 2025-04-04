@@ -17,6 +17,8 @@ pub struct NodeMetrics {
     pub incoming_connection_errors: Option<u64>,
     pub outgoing_connection_errors: Option<u64>,
     pub kad_get_closest_peers_errors: Option<u64>,
+    pub speed_in_bps: Option<f64>,
+    pub speed_out_bps: Option<f64>,
 }
 
 /// Parses the raw metrics text into a NodeMetrics struct.
@@ -46,14 +48,30 @@ pub fn parse_metrics(metrics_data: &str) -> NodeMetrics {
 
         match metric_name {
             "ant_node_uptime" => metrics.uptime_seconds = parse_value::<u64>(value_str),
-            "ant_networking_process_memory_used_mb" => metrics.memory_used_mb = parse_value::<f64>(value_str),
-            "ant_networking_process_cpu_usage_percentage" => metrics.cpu_usage_percentage = parse_value::<f64>(value_str),
-            "ant_networking_connected_peers" => metrics.connected_peers = parse_value::<u64>(value_str),
-            "ant_networking_peers_in_routing_table" => metrics.peers_in_routing_table = parse_value::<u64>(value_str),
-            "ant_networking_estimated_network_size" => metrics.estimated_network_size = parse_value::<u64>(value_str),
-            "ant_networking_records_stored" => metrics.records_stored = parse_value::<u64>(value_str),
-            "ant_node_put_record_err_total" => metrics.put_record_errors = parse_value::<u64>(value_str),
-            "ant_node_current_reward_wallet_balance" => metrics.reward_wallet_balance = parse_value::<u64>(value_str),
+            "ant_networking_process_memory_used_mb" => {
+                metrics.memory_used_mb = parse_value::<f64>(value_str)
+            }
+            "ant_networking_process_cpu_usage_percentage" => {
+                metrics.cpu_usage_percentage = parse_value::<f64>(value_str)
+            }
+            "ant_networking_connected_peers" => {
+                metrics.connected_peers = parse_value::<u64>(value_str)
+            }
+            "ant_networking_peers_in_routing_table" => {
+                metrics.peers_in_routing_table = parse_value::<u64>(value_str)
+            }
+            "ant_networking_estimated_network_size" => {
+                metrics.estimated_network_size = parse_value::<u64>(value_str)
+            }
+            "ant_networking_records_stored" => {
+                metrics.records_stored = parse_value::<u64>(value_str)
+            }
+            "ant_node_put_record_err_total" => {
+                metrics.put_record_errors = parse_value::<u64>(value_str)
+            }
+            "ant_node_current_reward_wallet_balance" => {
+                metrics.reward_wallet_balance = parse_value::<u64>(value_str)
+            }
             // Handle metrics with labels
             name if name.starts_with("libp2p_bandwidth_bytes_total") => {
                 if line.contains(r#"direction="Inbound""#) {
@@ -73,7 +91,7 @@ pub fn parse_metrics(metrics_data: &str) -> NodeMetrics {
                 }
             }
             name if name.starts_with("libp2p_kad_query_result_get_closest_peers_error_total") => {
-                 if let Some(val) = parse_value::<u64>(value_str) {
+                if let Some(val) = parse_value::<u64>(value_str) {
                     kad_get_closest_peers_errors_sum += val;
                 }
             }
@@ -82,13 +100,19 @@ pub fn parse_metrics(metrics_data: &str) -> NodeMetrics {
     }
 
     // Assign summed errors if they were found or the metric name exists at all
-    if incoming_connection_errors_sum > 0 || metrics_data.contains("libp2p_swarm_connections_incoming_error_total") {
-         metrics.incoming_connection_errors = Some(incoming_connection_errors_sum);
+    if incoming_connection_errors_sum > 0
+        || metrics_data.contains("libp2p_swarm_connections_incoming_error_total")
+    {
+        metrics.incoming_connection_errors = Some(incoming_connection_errors_sum);
     }
-     if outgoing_connection_errors_sum > 0 || metrics_data.contains("libp2p_swarm_outgoing_connection_error_total") {
+    if outgoing_connection_errors_sum > 0
+        || metrics_data.contains("libp2p_swarm_outgoing_connection_error_total")
+    {
         metrics.outgoing_connection_errors = Some(outgoing_connection_errors_sum);
     }
-    if kad_get_closest_peers_errors_sum > 0 || metrics_data.contains("libp2p_kad_query_result_get_closest_peers_error_total") {
+    if kad_get_closest_peers_errors_sum > 0
+        || metrics_data.contains("libp2p_kad_query_result_get_closest_peers_error_total")
+    {
         metrics.kad_get_closest_peers_errors = Some(kad_get_closest_peers_errors_sum);
     }
 

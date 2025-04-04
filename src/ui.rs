@@ -185,13 +185,15 @@ fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
         "RT Peers",
         "BW In",
         "BW Out",
+        "Speed In",  // New column
+        "Speed Out", // New column
         "Records",
         "PUT Err",
         "Rewards",
         "Conn Err In",
         "Conn Err Out",
         "Kad Err",
-        "Status", // Removed "Net Size"
+        "Status",
     ]
     .iter()
     .map(|h| {
@@ -222,15 +224,16 @@ fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
 
     // Define constraints for each column - ensure this matches the number of headers/cells
     let constraints = [
-        Constraint::Length(20), // Server Name (was Address) - adjusted width
+        Constraint::Length(20), // Server Name
         Constraint::Length(10), // Uptime
         Constraint::Length(10), // Mem
         Constraint::Length(8),  // CPU
         Constraint::Length(8),  // Peers
         Constraint::Length(8),  // RT Peers
-        // Constraint::Length(10), // Net Size - REMOVED
         Constraint::Length(12), // BW In
         Constraint::Length(12), // BW Out
+        Constraint::Length(10), // Speed In  (New)
+        Constraint::Length(10), // Speed Out (New)
         Constraint::Length(10), // Records
         Constraint::Length(8),  // PUT Err
         Constraint::Length(10), // Rewards
@@ -294,6 +297,17 @@ fn format_option_u64_bytes(opt: Option<u64>) -> String {
     }
 }
 
+// Helper to format Option<f64> speed in Bps to human-readable KB/s, MB/s etc.
+fn format_speed_bps(speed_bps: Option<f64>) -> String {
+    match speed_bps {
+        Some(bps) if bps >= 0.0 => {
+            // Use humansize for formatting, append "/s"
+            format!("{}/s", format_size(bps as u64, DECIMAL))
+        }
+        _ => "-".to_string(), // Handle None or negative values (e.g., initial state)
+    }
+}
+
 // Helper to create table cells for a row with valid metrics data
 fn create_metrics_cells<'a>(name: &'a str, metrics: &'a NodeMetrics) -> Vec<Cell<'a>> {
     // Accept name instead of addr
@@ -305,8 +319,10 @@ fn create_metrics_cells<'a>(name: &'a str, metrics: &'a NodeMetrics) -> Vec<Cell
         right_aligned_cell(format_option(metrics.connected_peers)),
         right_aligned_cell(format_option(metrics.peers_in_routing_table)),
         // Cell::from(format_option_u64_bytes(metrics.estimated_network_size)), // Removed Net Size - format_option_u64_bytes also removed
-        right_aligned_cell(format_option_u64_bytes(metrics.bandwidth_inbound_bytes)), // Restore humansize formatting
-        right_aligned_cell(format_option_u64_bytes(metrics.bandwidth_outbound_bytes)), // Restore humansize formatting
+        right_aligned_cell(format_option_u64_bytes(metrics.bandwidth_inbound_bytes)),
+        right_aligned_cell(format_option_u64_bytes(metrics.bandwidth_outbound_bytes)),
+        right_aligned_cell(format_speed_bps(metrics.speed_in_bps)), // New Speed In cell
+        right_aligned_cell(format_speed_bps(metrics.speed_out_bps)), // New Speed Out cell
         right_aligned_cell(format_option(metrics.records_stored)),
         right_aligned_cell(format_option(metrics.put_record_errors)),
         right_aligned_cell(format_option(metrics.reward_wallet_balance)),
@@ -322,7 +338,7 @@ fn create_error_cells<'a>(name: &'a str, error_msg: &'a str) -> Vec<Cell<'a>> {
     // Accept name instead of addr
     let mut cells = vec![Cell::from(name.to_string())]; // Display server name
     // Add placeholder cells for the metrics columns (now 13 metrics + 1 status = 14 total after name)
-    cells.extend(vec![Cell::from("-"); 13]); // 13 metric columns (Net Size removed)
+    cells.extend(vec![Cell::from("-"); 15]); // 13 original + 2 speed columns
     // Add the error message in the final 'Status' column
     cells.push(Cell::from(error_msg.to_string()).style(Style::default().fg(Color::Red)));
     cells
