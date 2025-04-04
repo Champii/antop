@@ -228,15 +228,11 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
 
     // Render status in the 11th column chunk (index 10)
     // Status text is the 11th item in data_cells (index 10), rendered into chunk 11
-    // No need to render it separately anymore as the loop above handles it.
-    // We can remove these lines if status is already included in data_cells.
-    // Let's double-check formatters.rs to confirm if status is part of data_cells.
-    // Assuming status is NOT part of data_cells and needs separate rendering:
+    // Render status separately in the correct column chunk
     let status_paragraph = Paragraph::new(format!("{}", status_text))
         .style(style)
-        .alignment(Alignment::Right); // Pad status
-    // Status is now rendered within the loop above (index 11 maps to chunk 12)
-    // f.render_widget(status_paragraph, column_chunks[12]); // Status is now index 12
+        .alignment(Alignment::Right);
+    f.render_widget(status_paragraph, column_chunks[12]); // Status is index 12
 
     // --- Render Separate Rx/Tx Charts ---
     let (chart_data_in, chart_data_out, speed_in, speed_out) = metrics_result
