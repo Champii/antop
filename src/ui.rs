@@ -292,14 +292,6 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
                 let y_max = data.iter().map(|&(_, y)| y).fold(f64::NAN, f64::max);
                 let y_bounds = [0.0, y_max.max(1.0)];
                 let chart = Chart::new(datasets)
-                    .block(
-                        Block::default()
-                            .title(Span::styled(
-                                "Speed In (Bps)",
-                                Style::default().fg(Color::White),
-                            ))
-                            .borders(Borders::LEFT),
-                    )
                     .x_axis(
                         Axis::default()
                             .style(Style::default().fg(Color::DarkGray))
