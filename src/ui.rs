@@ -210,9 +210,10 @@ fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
         let (cells, row_style) = match metrics_result {
             Some(Ok(metrics)) => (create_metrics_cells(name, metrics), Style::default()), // Pass name
             Some(Err(e)) => (
-                create_error_cells(name, e),
+                // Display "Stopped" even on fetch error, not the error message itself
+                create_error_cells(name, "Stopped"),
                 Style::default().fg(Color::Yellow),
-            ), // Pass name, Yellow for Stopped/Fetch Error row
+            ),
             None => (
                 create_error_cells(name, "Stopped"), // More descriptive text
                 Style::default().fg(Color::Yellow),  // Yellow for Stopped/Missing row
