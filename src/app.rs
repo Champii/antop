@@ -4,8 +4,8 @@ use std::{collections::HashMap, time::Instant};
 
 /// Holds the application state.
 pub struct App {
-    pub server_addresses: Vec<String>,
-    // Store parsed metrics or error string directly
+    pub servers: Vec<(String, String)>, // Stores (server_name, server_url)
+    // Store parsed metrics or error string directly, keyed by server_url
     pub metrics: HashMap<String, Result<NodeMetrics, String>>,
     pub last_update: Instant,
     pub table_state: TableState, // To potentially handle scrolling later
@@ -13,14 +13,14 @@ pub struct App {
 
 impl App {
     /// Creates a new App instance with initial server list.
-    pub fn new(servers: Vec<String>) -> App {
+    pub fn new(servers: Vec<(String, String)>) -> App {
         let mut metrics_map = HashMap::new();
-        for server in &servers {
-            // Initial state indicates fetching
-            metrics_map.insert(server.clone(), Err("Fetching...".to_string()));
+        // Initialize metrics map with URLs as keys
+        for (_name, url) in &servers {
+            metrics_map.insert(url.clone(), Err("Fetching...".to_string()));
         }
         App {
-            server_addresses: servers,
+            servers, // Assign the passed-in Vec<(String, String)>
             metrics: metrics_map,
             last_update: Instant::now(), // Initialize last_update time
             table_state: TableState::default(), // Initialize table state

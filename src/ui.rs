@@ -22,7 +22,7 @@ use std::{
     io::{self, Stdout},
     time::Duration,
 };
-use humansize::{format_size, DECIMAL};
+use humansize::{format_size, DECIMAL}; // Re-added for BW formatting
 use tokio::time::interval;
 
 // --- TUI Setup and Restore ---
@@ -53,8 +53,9 @@ pub async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App, cli: 
     let mut discover_timer = interval(Duration::from_secs(60)); // Check for new servers every 60s
 
     // Initial fetch if servers were found initially
-    if !app.server_addresses.is_empty() {
-        let initial_results = fetch_metrics(&app.server_addresses).await;
+    if !app.servers.is_empty() {
+        let urls: Vec<String> = app.servers.iter().map(|(_, url)| url.clone()).collect();
+        let initial_results = fetch_metrics(&urls).await;
         app.update_metrics(initial_results);
     }
 
@@ -65,31 +66,40 @@ pub async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App, cli: 
         tokio::select! {
             _ = tick_timer.tick() => {
                 // Fetch metrics for current servers periodically
-                if !app.server_addresses.is_empty() {
-                    let results = fetch_metrics(&app.server_addresses).await;
+                if !app.servers.is_empty() {
+                    let urls: Vec<String> = app.servers.iter().map(|(_, url)| url.clone()).collect();
+                    let results = fetch_metrics(&urls).await;
                     app.update_metrics(results);
                 }
             },
             _ = discover_timer.tick() => {
                  // Discover servers periodically
                 match find_metrics_servers(cli.logs.as_deref()) {
-                    Ok(found_servers) => {
-                        // Simple update strategy: replace list and add new entries to map
-                        // A more sophisticated approach might handle removed servers explicitly
-                        let mut updated = false;
-                        for server in &found_servers {
-                            if !app.metrics.contains_key(server) {
-                                app.metrics.insert(server.clone(), Err("Discovered - Fetching...".to_string()));
-                                updated = true; // Mark that we added a new server
+                    Ok(mut found_servers) => { // Now Vec<(String, String)>
+                        // Sort by name, deduplicate by URL (as done in discovery.rs)
+                        found_servers.sort_by(|a, b| a.0.cmp(&b.0));
+                        found_servers.dedup_by(|a, b| a.1 == b.1);
+
+                        // let mut metrics_updated = false; // Removed unused variable
+                        // Add any newly discovered servers to the metrics map
+                        for (name, url) in &found_servers {
+                            if !app.metrics.contains_key(url) {
+                                app.metrics.insert(url.clone(), Err(format!("Discovered {} - Fetching...", name)));
+                                // metrics_updated = true; // Removed unused assignment
                             }
                         }
-                        // Only update addresses if new ones were found or list differs
-                        if updated || app.server_addresses != found_servers {
-                             app.server_addresses = found_servers;
-                             app.server_addresses.sort(); // Keep it sorted
-                             app.server_addresses.dedup();
-                             // Optional: Trigger an immediate fetch for newly discovered servers if needed
+
+                        // Check if the server list itself has changed (order or content)
+                        let lists_differ = app.servers != found_servers;
+
+                        if lists_differ {
+                            app.servers = found_servers;
+                            // Optional: Remove metrics for servers no longer present
+                            // app.metrics.retain(|url, _| app.servers.iter().any(|(_, u)| u == url));
                         }
+
+                        // Consider triggering an immediate fetch if new servers were added or list changed significantly
+                        // if metrics_updated || lists_differ { ... }
 
                     }
                     Err(e) => {
@@ -154,7 +164,7 @@ fn ui(f: &mut Frame, app: &mut App) {
     let status_text = format!(
         "Last update: {}s ago | {} servers",
         app.last_update.elapsed().as_secs(),
-        app.server_addresses.len()
+        app.servers.len()
     );
     let status = Paragraph::new(status_text); //.alignment(Alignment::Right); // Requires ratatui::layout::Alignment
     f.render_widget(status, chunks[2]);
@@ -162,8 +172,8 @@ fn ui(f: &mut Frame, app: &mut App) {
 
 fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
     let header_cells = [
-        "Server", "Uptime", "Mem (MB)", "CPU (%)", "Peers", "RT Peers", "Net Size",
-        "BW In", "BW Out", "Records", "PUT Err", "Rewards", "Conn Err In", "Conn Err Out", "Kad Err", "Status"
+        "Server", "Uptime", "Mem (MB)", "CPU (%)", "Peers", "RT Peers",
+        "BW In", "BW Out", "Records", "PUT Err", "Rewards", "Conn Err In", "Conn Err Out", "Kad Err", "Status" // Removed "Net Size"
     ]
     .iter()
     .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow)));
@@ -172,25 +182,26 @@ fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
     // Sort addresses for consistent display order
     // app.server_addresses.sort(); // Ensure addresses are sorted before rendering
 
-    let rows = app.server_addresses.iter().map(|addr| {
-        let metrics_result = app.metrics.get(addr);
+    // Iterate over (name, url) pairs
+    let rows = app.servers.iter().map(|(name, url)| {
+        let metrics_result = app.metrics.get(url); // Use URL as key for metrics
         let (cells, row_style) = match metrics_result {
-            Some(Ok(metrics)) => (create_metrics_cells(addr, metrics), Style::default()),
-            Some(Err(e)) => (create_error_cells(addr, e), Style::default().fg(Color::Red)),
-            None => (create_error_cells(addr, "Missing data"), Style::default().fg(Color::DarkGray)), // Should ideally not happen
+            Some(Ok(metrics)) => (create_metrics_cells(name, metrics), Style::default()), // Pass name
+            Some(Err(e)) => (create_error_cells(name, e), Style::default().fg(Color::Red)), // Pass name
+            None => (create_error_cells(name, "Missing data"), Style::default().fg(Color::DarkGray)), // Pass name
         };
         Row::new(cells).style(row_style)
     });
 
     // Define constraints for each column - ensure this matches the number of headers/cells
     let constraints = [
-        Constraint::Length(25), // Server Address
+        Constraint::Length(15), // Server Name (was Address) - adjusted width
         Constraint::Length(10), // Uptime
         Constraint::Length(10), // Mem
         Constraint::Length(8),  // CPU
         Constraint::Length(8),  // Peers
         Constraint::Length(8),  // RT Peers
-        Constraint::Length(10), // Net Size
+        // Constraint::Length(10), // Net Size - REMOVED
         Constraint::Length(12), // BW In
         Constraint::Length(12), // BW Out
         Constraint::Length(10), // Records
@@ -258,17 +269,17 @@ fn format_option_u64_bytes(opt: Option<u64>) -> String {
 
 
 // Helper to create table cells for a row with valid metrics data
-fn create_metrics_cells<'a>(addr: &'a str, metrics: &'a NodeMetrics) -> Vec<Cell<'a>> {
+fn create_metrics_cells<'a>(name: &'a str, metrics: &'a NodeMetrics) -> Vec<Cell<'a>> { // Accept name instead of addr
     vec![
-        Cell::from(addr.to_string()), // Keep address as String for lifetime 'a
+        Cell::from(name.to_string()), // Display server name
         Cell::from(format_uptime(metrics.uptime_seconds)),
         Cell::from(format_float(metrics.memory_used_mb, 1)),
         Cell::from(format_float(metrics.cpu_usage_percentage, 1)),
         Cell::from(format_option(metrics.connected_peers)),
         Cell::from(format_option(metrics.peers_in_routing_table)),
-        Cell::from(format_option_u64_bytes(metrics.estimated_network_size)),
-        Cell::from(format_option_u64_bytes(metrics.bandwidth_inbound_bytes)),
-        Cell::from(format_option_u64_bytes(metrics.bandwidth_outbound_bytes)),
+        // Cell::from(format_option_u64_bytes(metrics.estimated_network_size)), // Removed Net Size - format_option_u64_bytes also removed
+        Cell::from(format_option_u64_bytes(metrics.bandwidth_inbound_bytes)), // Restore humansize formatting
+        Cell::from(format_option_u64_bytes(metrics.bandwidth_outbound_bytes)), // Restore humansize formatting
         Cell::from(format_option(metrics.records_stored)),
         Cell::from(format_option(metrics.put_record_errors)),
         Cell::from(format_option(metrics.reward_wallet_balance)),
@@ -280,10 +291,10 @@ fn create_metrics_cells<'a>(addr: &'a str, metrics: &'a NodeMetrics) -> Vec<Cell
 }
 
 // Helper to create table cells for a row indicating an error state
-fn create_error_cells<'a>(addr: &'a str, error_msg: &'a str) -> Vec<Cell<'a>> {
-    let mut cells = vec![Cell::from(addr.to_string())];
-    // Add placeholder cells for the metrics columns
-    cells.extend(vec![Cell::from("-"); 14]); // 14 metric columns
+fn create_error_cells<'a>(name: &'a str, error_msg: &'a str) -> Vec<Cell<'a>> { // Accept name instead of addr
+    let mut cells = vec![Cell::from(name.to_string())]; // Display server name
+    // Add placeholder cells for the metrics columns (now 13 metrics + 1 status = 14 total after name)
+    cells.extend(vec![Cell::from("-"); 13]); // 13 metric columns (Net Size removed)
     // Add the error message in the final 'Status' column
     cells.push(Cell::from(error_msg.to_string()).style(Style::default().fg(Color::Red)));
     cells

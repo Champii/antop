@@ -5,7 +5,7 @@ use std::{fs, path::PathBuf};
 
 /// Finds antnode log files and extracts the last reported metrics server address from each.
 /// Uses the provided `log_pattern_override` if Some, otherwise defaults to ~/.local/share/autonomi/node/*/logs/antnode.log
-pub fn find_metrics_servers(log_pattern_override: Option<&str>) -> Result<Vec<String>> {
+pub fn find_metrics_servers(log_pattern_override: Option<&str>) -> Result<Vec<(String, String)>> {
     let pattern_str = match log_pattern_override {
         Some(pattern) => pattern.to_string(),
         None => {
@@ -19,22 +19,41 @@ pub fn find_metrics_servers(log_pattern_override: Option<&str>) -> Result<Vec<St
 
     // This regex needs to be created here or passed in. Creating it here for simplicity.
     let re = Regex::new(r"Metrics server on (\S+)")?;
-    let mut addresses = Vec::new();
+    let mut servers: Vec<(String, String)> = Vec::new();
 
     // Use glob to find matching log files
     for entry in glob(&pattern_str).context("Failed to read glob pattern")? {
         match entry {
             Ok(path) => {
                 if path.is_file() {
-                    match process_log_file(&path, &re) {
-                        Ok(Some(address)) => {
-                            addresses.push(address);
+                    // Extract server name from path: .../node/<server_name>/logs/antnode.log
+                    let server_name = path
+                        .parent() // .../node/<server_name>/logs
+                        .and_then(|p| p.parent()) // .../node/<server_name>
+                        .and_then(|p| p.file_name()) // <server_name>
+                        .and_then(|os_str| os_str.to_str())
+                        .map(|s| s.to_string());
+
+                    if let Some(name) = server_name {
+                        match process_log_file(&path, &re) {
+                            Ok(Some(address)) => {
+                                servers.push((name, address));
+                            }
+                            Ok(None) => {
+                                // Log file found, but no metrics address inside
+                                eprintln!("Warning: No metrics address found in log file: {:?}", path);
+                            }
+                            Err(e) => {
+                                // Error reading or processing the log file content
+                                eprintln!("Error processing log file {:?}: {}", path, e);
+                            }
                         }
-                        Ok(None) => {} // Ignore logs without the address
-                        Err(e) => {
-                            // Consider logging this error instead of printing directly
-                            eprintln!("Error processing log file {:?}: {}", path, e);
-                        }
+                    } else {
+                        // Path structure didn't allow extracting a name
+                        eprintln!(
+                            "Warning: Could not extract server name from path: {:?}",
+                            path
+                        );
                     }
                 }
             }
@@ -42,9 +61,11 @@ pub fn find_metrics_servers(log_pattern_override: Option<&str>) -> Result<Vec<St
         }
     }
 
-    addresses.sort();
-    addresses.dedup();
-    Ok(addresses)
+    // Sort by server name
+    servers.sort_by(|a, b| a.0.cmp(&b.0));
+    // Deduplicate based on the server URL (the unique identifier)
+    servers.dedup_by(|a, b| a.1 == b.1);
+    Ok(servers)
 }
 
 /// Reads a single log file and extracts the last metrics server address.
