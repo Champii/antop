@@ -152,7 +152,7 @@ fn ui(f: &mut Frame, app: &mut App) {
     // Main vertical layout: Title, Content Area, Status
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .margin(1)
+        .margin(0)
         .constraints(
             [
                 Constraint::Length(1), // Title/Instructions
