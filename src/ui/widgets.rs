@@ -102,7 +102,6 @@ fn render_bandwidth_chart_and_speed(
     area: Rect,
     chart_data: Option<&[(f64, f64)]>,
     current_speed: Option<f64>,
-    style: Style,
     color: Color,
     name: &str, // For dataset name
 ) {
@@ -147,9 +146,7 @@ fn render_bandwidth_chart_and_speed(
 
         // Render current speed next to the chart
         let speed_text = format_speed_bps(current_speed);
-        let speed_paragraph = Paragraph::new(speed_text)
-            // .style(style) // Use the row's overall style (Green/Yellow/Gray)
-            .alignment(Alignment::Right);
+        let speed_paragraph = Paragraph::new(speed_text).alignment(Alignment::Right);
         f.render_widget(speed_paragraph, speed_area);
     } else {
         // Placeholder for the entire chart + speed area if no data
@@ -228,24 +225,8 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
         });
 
     // Render Rx Chart and Speed
-    render_bandwidth_chart_and_speed(
-        f,
-        rx_area,
-        chart_data_in,
-        speed_in,
-        style, // Pass the overall row style
-        Color::Cyan,
-        "Rx",
-    );
+    render_bandwidth_chart_and_speed(f, rx_area, chart_data_in, speed_in, Color::Cyan, "Rx");
 
     // Render Tx Chart and Speed
-    render_bandwidth_chart_and_speed(
-        f,
-        tx_area,
-        chart_data_out,
-        speed_out,
-        style, // Pass the overall row style
-        Color::Magenta,
-        "Tx",
-    );
+    render_bandwidth_chart_and_speed(f, tx_area, chart_data_out, speed_out, Color::Magenta, "Tx");
 }
