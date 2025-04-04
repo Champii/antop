@@ -14,12 +14,13 @@ use crossterm::{
 use humansize::{DECIMAL, format_size}; // Re-added for BW formatting
 use ratatui::{
     Frame,
-    Terminal,
+    Terminal, // Removed Block, Borders
     backend::{Backend, CrosstermBackend},
-    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect}, // Added Margin
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Style},
     symbols,
-    widgets::{Axis, Chart, Dataset, GraphType, Paragraph}, // Removed Block, Borders
+    text::Line,
+    widgets::{Axis, Chart, Dataset, GraphType, Paragraph},
 };
 use std::{
     io::{self, Stdout},
@@ -267,19 +268,21 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
         } // Bounds check
         let row_area = vertical_chunks[i + 1]; // Use chunks starting from 1
 
-        // Split row: Text | Chart Placeholder (remains the same)
+        // Split row: Text | Rx Chart | Tx Chart
         let row_content_chunks = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
                 Constraint::Percentage(70), // Text area
-                Constraint::Percentage(30), // Chart placeholder area
+                Constraint::Percentage(15), // Rx Chart area
+                Constraint::Percentage(15), // Tx Chart area
             ])
             .split(row_area);
 
         let text_area = row_content_chunks[0];
-        let chart_placeholder_area = row_content_chunks[1];
+        let rx_chart_area = row_content_chunks[1];
+        let tx_chart_area = row_content_chunks[2];
 
-        // The chart_placeholder_area will now hold the combined chart directly.
+        // The rx_chart_area and tx_chart_area will hold the separate charts.
 
         // Get metrics and determine style (remains the same)
         let metrics_result = app.metrics.get(url);
@@ -365,85 +368,92 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
         let status_paragraph = Paragraph::new(format!("{:<8}", status_text)).style(style); // Pad status
         f.render_widget(status_paragraph, column_chunks[10]);
 
-        // --- Render Combined Rx/Tx Chart ---
+        // --- Render Separate Rx/Tx Charts ---
         let chart_data_in = metrics_result
             .and_then(|res| res.as_ref().ok().and_then(|m| m.chart_data_in.as_deref()));
         let chart_data_out = metrics_result
             .and_then(|res| res.as_ref().ok().and_then(|m| m.chart_data_out.as_deref()));
 
-        let has_in_data = chart_data_in.map_or(false, |d| d.len() >= 2);
-        let has_out_data = chart_data_out.map_or(false, |d| d.len() >= 2);
+        // --- Render Rx Chart ---
+        if let Some(data_in) = chart_data_in.filter(|d| d.len() >= 2) {
+            let rx_max_len = data_in.len();
+            let rx_max_y = data_in
+                .iter()
+                .map(|&(_, y)| y)
+                .fold(0.0f64, |max, y| max.max(y)); // Start fold with 0.0
+            let rx_x_bounds = [0.0, (rx_max_len.saturating_sub(1)).max(1) as f64];
+            let rx_y_bounds = [0.0, rx_max_y.max(1.0)]; // Ensure lower bound is 0, upper at least 1.0
 
-        if has_in_data || has_out_data {
-            let mut datasets = Vec::new();
-            let mut max_len = 0;
-            let mut max_y = 0.0f64;
+            let rx_dataset = Dataset::default()
+                .name("Rx")
+                .marker(symbols::Marker::Braille)
+                .graph_type(GraphType::Line)
+                .style(Style::default().fg(Color::Cyan))
+                .data(data_in);
 
-            if let Some(data_in) = chart_data_in.filter(|d| d.len() >= 2) {
-                datasets.push(
-                    Dataset::default()
-                        .name("Rx")
-                        .marker(symbols::Marker::Braille)
-                        .graph_type(GraphType::Line)
-                        .style(Style::default().fg(Color::Cyan))
-                        .data(data_in),
+            let rx_chart = Chart::new(vec![rx_dataset])
+                // .block(ratatui::widgets::Block::default().title("Bandwidth In (Rx)")) // Add title
+                .x_axis(
+                    Axis::default()
+                        .style(Style::default().fg(Color::DarkGray))
+                        .bounds(rx_x_bounds)
+                        .labels::<Vec<Line<'_>>>(vec![]), // Hide X labels
+                )
+                .y_axis(
+                    Axis::default()
+                        .style(Style::default().fg(Color::DarkGray))
+                        .bounds(rx_y_bounds)
+                        .labels::<Vec<Line<'_>>>(vec![]) // Hide Y labels
+                        .labels_alignment(Alignment::Right),
                 );
-                max_len = max_len.max(data_in.len());
-                let y_max_in = data_in.iter().map(|&(_, y)| y).fold(f64::NAN, f64::max);
-                if !y_max_in.is_nan() {
-                    max_y = max_y.max(y_max_in);
-                }
-            }
-
-            if let Some(data_out) = chart_data_out.filter(|d| d.len() >= 2) {
-                datasets.push(
-                    Dataset::default()
-                        .name("Tx")
-                        .marker(symbols::Marker::Braille)
-                        .graph_type(GraphType::Line)
-                        .style(Style::default().fg(Color::Magenta))
-                        .data(data_out),
-                );
-                max_len = max_len.max(data_out.len());
-                let y_max_out = data_out.iter().map(|&(_, y)| y).fold(f64::NAN, f64::max);
-                if !y_max_out.is_nan() {
-                    max_y = max_y.max(y_max_out);
-                }
-            }
-
-            if !datasets.is_empty() {
-                let x_bounds = [0.0, (max_len.saturating_sub(1)).max(1) as f64];
-                let y_bounds = [0.0, max_y.max(1.0)]; // Ensure lower bound is 0, upper at least 1.0
-
-                let chart = Chart::new(datasets)
-                    .x_axis(
-                        Axis::default()
-                            .style(Style::default().fg(Color::DarkGray))
-                            .bounds(x_bounds)
-                            .labels::<Vec<ratatui::text::Span<'_>>>(vec![]), // Hide X labels for space
-                    )
-                    .y_axis(
-                        Axis::default()
-                            .style(Style::default().fg(Color::DarkGray))
-                            .bounds(y_bounds)
-                            .labels::<Vec<ratatui::text::Span<'_>>>(vec![]) // Hide Y labels for space
-                            .labels_alignment(Alignment::Right),
-                    );
-                f.render_widget(chart, chart_placeholder_area); // Render combined chart
-            } else {
-                // This case should technically not be reached if has_in_data || has_out_data is true
-                // and the filters work correctly, but added for robustness.
-                let placeholder = Paragraph::new("BW (no data)")
-                    .style(Style::default().fg(Color::DarkGray))
-                    .alignment(Alignment::Center);
-                f.render_widget(placeholder, chart_placeholder_area);
-            }
+            f.render_widget(rx_chart, rx_chart_area);
         } else {
-            // Placeholder if neither Rx nor Tx has enough data or is N/A
-            let placeholder = Paragraph::new("BW (N/A)")
+            // Placeholder for Rx chart
+            let placeholder = Paragraph::new("BW In (N/A)")
                 .style(Style::default().fg(Color::DarkGray))
                 .alignment(Alignment::Center);
-            f.render_widget(placeholder, chart_placeholder_area);
+            f.render_widget(placeholder, rx_chart_area);
+        }
+
+        // --- Render Tx Chart ---
+        if let Some(data_out) = chart_data_out.filter(|d| d.len() >= 2) {
+            let tx_max_len = data_out.len();
+            let tx_max_y = data_out
+                .iter()
+                .map(|&(_, y)| y)
+                .fold(0.0f64, |max, y| max.max(y)); // Start fold with 0.0
+            let tx_x_bounds = [0.0, (tx_max_len.saturating_sub(1)).max(1) as f64];
+            let tx_y_bounds = [0.0, tx_max_y.max(1.0)]; // Ensure lower bound is 0, upper at least 1.0
+
+            let tx_dataset = Dataset::default()
+                .name("Tx")
+                .marker(symbols::Marker::Braille)
+                .graph_type(GraphType::Line)
+                .style(Style::default().fg(Color::Magenta))
+                .data(data_out);
+
+            let tx_chart = Chart::new(vec![tx_dataset])
+                // .block(ratatui::widgets::Block::default().title("Bandwidth Out (Tx)")) // Add title
+                .x_axis(
+                    Axis::default()
+                        .style(Style::default().fg(Color::DarkGray))
+                        .bounds(tx_x_bounds)
+                        .labels::<Vec<Line<'_>>>(vec![]), // Hide X labels
+                )
+                .y_axis(
+                    Axis::default()
+                        .style(Style::default().fg(Color::DarkGray))
+                        .bounds(tx_y_bounds)
+                        .labels::<Vec<Line<'_>>>(vec![]) // Hide Y labels
+                        .labels_alignment(Alignment::Right),
+                );
+            f.render_widget(tx_chart, tx_chart_area);
+        } else {
+            // Placeholder for Tx chart
+            let placeholder = Paragraph::new("BW Out (N/A)")
+                .style(Style::default().fg(Color::DarkGray))
+                .alignment(Alignment::Center);
+            f.render_widget(placeholder, tx_chart_area);
         }
     }
 } // End of render_custom_node_rows
