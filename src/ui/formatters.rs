@@ -80,7 +80,7 @@ pub fn create_list_item_cells(name: &str, metrics: &NodeMetrics) -> Vec<String> 
         format!("{:<6}MB", format_float(metrics.memory_used_mb, 1)),      // Mem MB
         format!("{:<5}%", format_float(metrics.cpu_usage_percentage, 1)), // CPU %
         format!(
-            "{:<7}",
+            "{}", // Removed :<7 padding
             format_peers(
                 metrics.connected_peers.map(|v| v as u32),
                 metrics.peers_in_routing_table.map(|v| v as u32)
@@ -95,10 +95,10 @@ pub fn create_list_item_cells(name: &str, metrics: &NodeMetrics) -> Vec<String> 
             "{}",
             format_option_u64_bytes(metrics.bandwidth_outbound_bytes)
         ), // Total Out
-        format!("{:<7}", format_option(metrics.records_stored)), // Records
-        format!("{:<8}", format_option(metrics.reward_wallet_balance)), // Reward
-        format!("{:<4}", total_errors),                          // Err
-                                                                 // Status is handled separately in render_custom_node_rows
+        format!("{}", format_option(metrics.records_stored)), // Records - Removed :<7 padding
+        format!("{}", format_option(metrics.reward_wallet_balance)), // Reward - Removed :<8 padding
+        format!("{:<4}", total_errors),                       // Err
+                                                              // Status is handled separately in render_custom_node_rows
     ]
 }
 

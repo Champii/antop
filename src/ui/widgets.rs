@@ -67,8 +67,8 @@ pub fn render_header(f: &mut Frame, area: Rect) {
         // Render text titles into the first 11 columns
         if i < HEADER_TITLES.len() {
             // Check against HEADER_TITLES length
-            let alignment = if i == 5 || i == 6 {
-                // Indices for "Total In" and "Total Out"
+            let alignment = if i == 4 || i == 5 || i == 6 || i == 7 || i == 8 {
+                // Indices for "Peers", "Total In", "Total Out", "Recs", "Rwds"
                 Alignment::Right
             } else {
                 Alignment::Left
@@ -194,8 +194,8 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
     for (idx, cell_text) in data_cells.iter().enumerate() {
         // Render into columns 0 through 10 (inclusive)
         if idx < 11 {
-            let alignment = if idx == 5 || idx == 6 {
-                // Indices for "Total In" and "Total Out"
+            let alignment = if idx == 4 || idx == 5 || idx == 6 || idx == 7 || idx == 8 {
+                // Indices for "Peers", "Total In", "Total Out", "Recs", "Rwds"
                 Alignment::Right
             } else {
                 Alignment::Left // Explicitly set left for others
