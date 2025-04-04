@@ -88,11 +88,11 @@ pub fn create_list_item_cells(name: &str, metrics: &NodeMetrics) -> Vec<String> 
         ), // Peers
         // Use total bytes (bandwidth_..._bytes) and format_option_u64_bytes instead of current speed
         format!(
-            "{:<10}",
+            "{}",
             format_option_u64_bytes(metrics.bandwidth_inbound_bytes)
         ), // Total In
         format!(
-            "{:<10}",
+            "{}",
             format_option_u64_bytes(metrics.bandwidth_outbound_bytes)
         ), // Total Out
         format!("{:<7}", format_option(metrics.records_stored)), // Records

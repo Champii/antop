@@ -67,9 +67,15 @@ pub fn render_header(f: &mut Frame, area: Rect) {
         // Render text titles into the first 11 columns
         if i < HEADER_TITLES.len() {
             // Check against HEADER_TITLES length
+            let alignment = if i == 5 || i == 6 {
+                // Indices for "Total In" and "Total Out"
+                Alignment::Right
+            } else {
+                Alignment::Left
+            };
             let title_paragraph = Paragraph::new(*title)
                 .style(HEADER_STYLE)
-                .alignment(Alignment::Left);
+                .alignment(alignment);
             f.render_widget(title_paragraph, header_column_chunks[i]);
         }
     }
@@ -188,7 +194,15 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
     for (idx, cell_text) in data_cells.iter().enumerate() {
         // Render into columns 0 through 10 (inclusive)
         if idx < 11 {
-            let cell_paragraph = Paragraph::new(cell_text.clone()).style(DATA_CELL_STYLE);
+            let alignment = if idx == 5 || idx == 6 {
+                // Indices for "Total In" and "Total Out"
+                Alignment::Right
+            } else {
+                Alignment::Left // Explicitly set left for others
+            };
+            let cell_paragraph = Paragraph::new(cell_text.clone())
+                .style(DATA_CELL_STYLE)
+                .alignment(alignment);
             f.render_widget(cell_paragraph, column_chunks[idx]);
         }
     }
