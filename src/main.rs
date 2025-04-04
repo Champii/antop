@@ -132,7 +132,7 @@ fn find_metrics_servers() -> Result<Vec<String>> {
         .to_string_lossy()
         .to_string();
 
-    let re = Regex::new(r"Metrics server on (.*)")?;
+    let re = Regex::new(r"Metrics server on (\S+)")?;
     let mut addresses = Vec::new();
 
     // Use glob to find matching log files
@@ -188,7 +188,7 @@ async fn fetch_metrics(
         let client = client.clone();
         let addr = addr.clone();
         async move {
-            let url = format!("http://{}/metrics", addr);
+            let url = format!("{}/metrics", addr);
             let result = client.get(&url).send().await;
 
             match result {
