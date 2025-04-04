@@ -9,7 +9,7 @@ use glob::glob;
 use ratatui::{
     backend::{Backend, CrosstermBackend},
     layout::{Constraint, Direction, Layout, Rect},
-    style::{Color, Modifier, Style},
+    style::{Color, Style},
     widgets::{Block, Borders, Cell, Paragraph, Row, Table, TableState},
     Frame, Terminal,
 };
@@ -370,7 +370,7 @@ async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App) -> Result
 
 // --- UI Rendering ---
 
-fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
+fn ui(f: &mut Frame, app: &mut App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(1)
@@ -398,7 +398,7 @@ fn ui<B: Backend>(f: &mut Frame<B>, app: &mut App) {
     f.render_widget(status, chunks[2]);
 }
 
-fn render_metrics_table<B: Backend>(f: &mut Frame<B>, app: &mut App, area: Rect) {
+fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
     let header_cells = [
         "Server", "Uptime", "Mem (MB)", "CPU (%)", "Peers", "RT Peers", "Net Size",
         "BW In (B)", "BW Out (B)", "Records", "PUT Err", "Rewards", "Conn Err In", "Conn Err Out", "Kad Err", "Status"
