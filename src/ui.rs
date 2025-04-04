@@ -9,20 +9,22 @@ use anyhow::{Context, Result};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
+use humansize::{DECIMAL, format_size}; // Re-added for BW formatting
 use ratatui::{
+    Frame, Terminal,
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Style},
-    widgets::{Block, Borders, Cell, Paragraph, Row, Table}, // Removed TableState
-    Frame, Terminal,
+    text::Text,
+    widgets::{Block, Borders, Cell, Paragraph, Row, Table},
 };
 use std::{
+    fmt::Display,
     io::{self, Stdout},
     time::Duration,
 };
-use humansize::{format_size, DECIMAL}; // Re-added for BW formatting
 use tokio::time::interval;
 
 // --- TUI Setup and Restore ---
@@ -48,7 +50,11 @@ pub fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Re
 
 // --- Main Application Loop (moved from main.rs) ---
 
-pub async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App, cli: &Cli) -> Result<()> {
+pub async fn run_app<B: Backend>(
+    terminal: &mut Terminal<B>,
+    mut app: App,
+    cli: &Cli,
+) -> Result<()> {
     let mut tick_timer = interval(Duration::from_secs(1)); // Refresh data every second
     let mut discover_timer = interval(Duration::from_secs(60)); // Check for new servers every 60s
 
@@ -139,7 +145,6 @@ pub async fn run_app<B: Backend>(terminal: &mut Terminal<B>, mut app: App, cli: 
     }
 }
 
-
 // --- UI Rendering ---
 
 fn ui(f: &mut Frame, app: &mut App) {
@@ -172,11 +177,30 @@ fn ui(f: &mut Frame, app: &mut App) {
 
 fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
     let header_cells = [
-        "Server", "Uptime", "Mem (MB)", "CPU (%)", "Peers", "RT Peers",
-        "BW In", "BW Out", "Records", "PUT Err", "Rewards", "Conn Err In", "Conn Err Out", "Kad Err", "Status" // Removed "Net Size"
+        "Server",
+        "Uptime",
+        "Mem",
+        "CPU",
+        "Peers",
+        "RT Peers",
+        "BW In",
+        "BW Out",
+        "Records",
+        "PUT Err",
+        "Rewards",
+        "Conn Err In",
+        "Conn Err Out",
+        "Kad Err",
+        "Status", // Removed "Net Size"
     ]
     .iter()
-    .map(|h| Cell::from(*h).style(Style::default().fg(Color::Yellow)));
+    .map(|h| {
+        Cell::from(
+            Text::from(*h)
+                .alignment(Alignment::Right)
+                .style(Style::default().fg(Color::Yellow)),
+        )
+    });
     let header = Row::new(header_cells).height(1).bottom_margin(1);
 
     // Sort addresses for consistent display order
@@ -188,14 +212,17 @@ fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
         let (cells, row_style) = match metrics_result {
             Some(Ok(metrics)) => (create_metrics_cells(name, metrics), Style::default()), // Pass name
             Some(Err(e)) => (create_error_cells(name, e), Style::default().fg(Color::Red)), // Pass name
-            None => (create_error_cells(name, "Missing data"), Style::default().fg(Color::DarkGray)), // Pass name
+            None => (
+                create_error_cells(name, "Missing data"),
+                Style::default().fg(Color::DarkGray),
+            ), // Pass name
         };
         Row::new(cells).style(row_style)
     });
 
     // Define constraints for each column - ensure this matches the number of headers/cells
     let constraints = [
-        Constraint::Length(15), // Server Name (was Address) - adjusted width
+        Constraint::Length(20), // Server Name (was Address) - adjusted width
         Constraint::Length(10), // Uptime
         Constraint::Length(10), // Mem
         Constraint::Length(8),  // CPU
@@ -207,8 +234,8 @@ fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
         Constraint::Length(10), // Records
         Constraint::Length(8),  // PUT Err
         Constraint::Length(10), // Rewards
-        Constraint::Length(12), // Conn Err In
-        Constraint::Length(12), // Conn Err Out
+        Constraint::Length(15), // Conn Err In
+        Constraint::Length(15), // Conn Err Out
         Constraint::Length(8),  // Kad Err
         Constraint::Min(15),    // Status (flexible width)
     ];
@@ -217,8 +244,7 @@ fn render_metrics_table(f: &mut Frame, app: &mut App, area: Rect) {
         .header(header)
         .block(Block::default().borders(Borders::ALL).title("Metrics"))
         .widths(&constraints)
-
-    .flex(ratatui::layout::Flex::End);
+        .flex(ratatui::layout::Flex::Center);
 
     // Use TableState for potential future scrolling
     f.render_stateful_widget(table, area, &mut app.table_state);
@@ -268,36 +294,40 @@ fn format_option_u64_bytes(opt: Option<u64>) -> String {
     }
 }
 
-
-
 // Helper to create table cells for a row with valid metrics data
-fn create_metrics_cells<'a>(name: &'a str, metrics: &'a NodeMetrics) -> Vec<Cell<'a>> { // Accept name instead of addr
+fn create_metrics_cells<'a>(name: &'a str, metrics: &'a NodeMetrics) -> Vec<Cell<'a>> {
+    // Accept name instead of addr
     vec![
-        Cell::from(name.to_string()), // Display server name
-        Cell::from(format_uptime(metrics.uptime_seconds)),
-        Cell::from(format_float(metrics.memory_used_mb, 1)),
-        Cell::from(format_float(metrics.cpu_usage_percentage, 1)),
-        Cell::from(format_option(metrics.connected_peers)),
-        Cell::from(format_option(metrics.peers_in_routing_table)),
+        right_aligned_cell(name.to_string()), // Display server name
+        right_aligned_cell(format_uptime(metrics.uptime_seconds)),
+        right_aligned_cell(format_float(metrics.memory_used_mb, 1)),
+        right_aligned_cell(format_float(metrics.cpu_usage_percentage, 1)),
+        right_aligned_cell(format_option(metrics.connected_peers)),
+        right_aligned_cell(format_option(metrics.peers_in_routing_table)),
         // Cell::from(format_option_u64_bytes(metrics.estimated_network_size)), // Removed Net Size - format_option_u64_bytes also removed
-        Cell::from(format_option_u64_bytes(metrics.bandwidth_inbound_bytes)), // Restore humansize formatting
-        Cell::from(format_option_u64_bytes(metrics.bandwidth_outbound_bytes)), // Restore humansize formatting
-        Cell::from(format_option(metrics.records_stored)),
-        Cell::from(format_option(metrics.put_record_errors)),
-        Cell::from(format_option(metrics.reward_wallet_balance)),
-        Cell::from(format_option(metrics.incoming_connection_errors)),
-        Cell::from(format_option(metrics.outgoing_connection_errors)),
-        Cell::from(format_option(metrics.kad_get_closest_peers_errors)),
-        Cell::from("OK").style(Style::default().fg(Color::Green)), // Status column
+        right_aligned_cell(format_option_u64_bytes(metrics.bandwidth_inbound_bytes)), // Restore humansize formatting
+        right_aligned_cell(format_option_u64_bytes(metrics.bandwidth_outbound_bytes)), // Restore humansize formatting
+        right_aligned_cell(format_option(metrics.records_stored)),
+        right_aligned_cell(format_option(metrics.put_record_errors)),
+        right_aligned_cell(format_option(metrics.reward_wallet_balance)),
+        right_aligned_cell(format_option(metrics.incoming_connection_errors)),
+        right_aligned_cell(format_option(metrics.outgoing_connection_errors)),
+        right_aligned_cell(format_option(metrics.kad_get_closest_peers_errors)),
+        right_aligned_cell("OK".to_string()).style(Style::default().fg(Color::Green)), // Status column
     ]
 }
 
 // Helper to create table cells for a row indicating an error state
-fn create_error_cells<'a>(name: &'a str, error_msg: &'a str) -> Vec<Cell<'a>> { // Accept name instead of addr
+fn create_error_cells<'a>(name: &'a str, error_msg: &'a str) -> Vec<Cell<'a>> {
+    // Accept name instead of addr
     let mut cells = vec![Cell::from(name.to_string())]; // Display server name
     // Add placeholder cells for the metrics columns (now 13 metrics + 1 status = 14 total after name)
     cells.extend(vec![Cell::from("-"); 13]); // 13 metric columns (Net Size removed)
     // Add the error message in the final 'Status' column
     cells.push(Cell::from(error_msg.to_string()).style(Style::default().fg(Color::Red)));
     cells
+}
+
+fn right_aligned_cell(text: String) -> Cell<'static> {
+    Cell::from(Text::from(text).alignment(Alignment::Right))
 }
