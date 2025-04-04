@@ -209,7 +209,7 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
             idx + 1 // Err (9) maps to chunk 10, Status (10) maps to chunk 11
         };
 
-        if chunk_index < 12 {
+        if chunk_index < 13 {
             let alignment = Alignment::Right;
             let cell_paragraph = Paragraph::new(cell_text.clone())
                 .style(DATA_CELL_STYLE)
@@ -224,7 +224,9 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
     // We can remove these lines if status is already included in data_cells.
     // Let's double-check formatters.rs to confirm if status is part of data_cells.
     // Assuming status is NOT part of data_cells and needs separate rendering:
-    let status_paragraph = Paragraph::new(format!("{:<10}", status_text)).style(style); // Pad status
+    let status_paragraph = Paragraph::new(format!("{}", status_text))
+        .style(style)
+        .alignment(Alignment::Right); // Pad status
     f.render_widget(status_paragraph, column_chunks[11]); // Status is now index 11
 
     // --- Render Separate Rx/Tx Charts ---
