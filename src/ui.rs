@@ -16,22 +16,11 @@ use ratatui::{
     Frame,
     Terminal,
     backend::{Backend, CrosstermBackend},
-    layout::{Alignment, Constraint, Direction, Layout, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Margin, Rect}, // Added Margin
     style::{Color, Style},
-    symbols,            // Added for chart markers
-    text::{Span, Text}, // Removed unused 'Line'
-    widgets::{
-        Axis,
-        Block,
-        Borders,
-        Chart,
-        Dataset,
-        GraphType,
-        LegendPosition,
-        List,
-        ListItem, // Removed unused 'ListState'
-        Paragraph,
-    }, // Added Chart, Dataset, Axis, GraphType, LegendPosition
+    symbols,
+    text::{Line, Span, Text}, // Added Line for Axis titles
+    widgets::{Axis, Block, Borders, Chart, Dataset, GraphType, Paragraph}, // Added Chart widgets
 };
 use std::{
     io::{self, Stdout},
@@ -174,28 +163,15 @@ fn ui(f: &mut Frame, app: &mut App) {
         )
         .split(f.area());
 
-    // Split the middle content area horizontally: List on left, Chart on right
-    let content_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints(
-            [
-                Constraint::Percentage(65), // List takes 65%
-                Constraint::Percentage(35), // Chart takes 35%
-            ]
-            .as_ref(),
-        )
-        .split(main_chunks[1]); // Split the middle chunk (index 1)
+    // The middle content area (main_chunks[1]) will now be used entirely for the custom layout.
 
     let title = Paragraph::new(
         "Autonomi Node Dashboard | Press 'q' to quit | Use Up/Down keys to select node for chart",
     );
     f.render_widget(title, main_chunks[0]); // Use main_chunks[0]
 
-    // Render the list in the left content area
-    render_metrics_list(f, app, content_chunks[0]); // Use content_chunks[0]
-
-    // Render the speed chart in the right content area
-    render_speed_chart(f, app, content_chunks[1]); // Use content_chunks[1]
+    // Render the custom node rows in the main content area
+    render_custom_node_rows(f, app, main_chunks[1]); // Use main_chunks[1]
 
     let status_text = format!(
         "Last update: {}s ago | {} servers",
@@ -206,191 +182,150 @@ fn ui(f: &mut Frame, app: &mut App) {
     f.render_widget(status, main_chunks[2]); // Use main_chunks[2]
 }
 
-fn render_metrics_list(f: &mut Frame, app: &mut App, area: Rect) {
-    // Renamed function
-    let list_block = Block::default().borders(Borders::ALL).title("Nodes");
+fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
+    let outer_block = Block::default().borders(Borders::ALL).title("Nodes");
+    f.render_widget(outer_block, area); // Render the block first to draw borders
 
-    // Create list items from server data
-    let items: Vec<ListItem> = app
-        .servers
-        .iter()
-        .map(|(name, url)| {
-            let metrics_result = app.metrics.get(url);
-            let (text, style) = match metrics_result {
-                Some(Ok(metrics)) => (
-                    create_list_item_text(name, metrics),
-                    Style::default().fg(Color::Green), // Green for Running
-                ),
-                Some(Err(_)) => (
-                    format!("{:<20} | Status: Stopped", name), // Simplified error display
-                    Style::default().fg(Color::Yellow),        // Yellow for Stopped/Error
-                ),
-                None => (
-                    format!("{:<20} | Status: Unknown", name), // Should ideally not happen if initialized
-                    Style::default().fg(Color::DarkGray),
-                ),
-            };
-            ListItem::new(Text::styled(text, style))
-        })
-        .collect();
+    let inner_area = area.inner(Margin {
+        // Use Margin directly, remove '&' and full path
+        vertical: 1,
+        horizontal: 1,
+    }); // Area inside the block borders
 
-    // Handle list navigation *before* creating the List widget to avoid borrow errors
-    let num_items = items.len(); // Get length before moving items
-    if let Some(selected) = app.list_state.selected() {
-        if selected >= num_items {
-            // If selection is out of bounds (e.g. list shrunk), reset selection
-            app.list_state
-                .select(if num_items > 0 { Some(0) } else { None }); // Select first or none
-        }
-    } else if num_items > 0 {
-        app.list_state.select(Some(0)); // Select first item if nothing is selected
+    let num_servers = app.servers.len();
+    if num_servers == 0 {
+        // Handle case with no servers gracefully
+        let no_servers_text = Paragraph::new("No servers discovered yet...")
+            .style(Style::default().fg(Color::DarkGray))
+            .alignment(Alignment::Center);
+        f.render_widget(no_servers_text, inner_area);
+        return;
     }
 
-    // Create the List widget
-    let list = List::new(items) // Now 'items' is moved here
-        .block(list_block)
-        .highlight_style(Style::default().bg(Color::Blue).fg(Color::White)) // Basic highlight style
-        .highlight_symbol("> "); // Symbol for selected item
+    // Define constraints for each row. Each row gets equal height for now.
+    // We might need a more dynamic height later if charts have variable height.
+    let row_constraints = std::iter::repeat(Constraint::Ratio(1, num_servers as u32))
+        .take(num_servers)
+        .collect::<Vec<_>>();
 
-    // Render the list using ListState
-    f.render_stateful_widget(list, area, &mut app.list_state);
-} // End of render_metrics_list
+    // Create a vertical layout for the rows within the inner area
+    let row_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(row_constraints)
+        .split(inner_area);
 
-// --- Speed Chart Rendering ---
+    // Iterate through servers and render each row
+    for (i, (name, url)) in app.servers.iter().enumerate() {
+        let row_area = row_chunks[i];
 
-fn render_speed_chart(f: &mut Frame, app: &mut App, area: Rect) {
-    let selected_index = app.list_state.selected();
+        // Split the row area horizontally: Text | Chart Placeholder
+        let row_content_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(70), // Text area
+                Constraint::Percentage(30), // Chart placeholder area
+            ])
+            .split(row_area);
 
-    // Initialize chart variables before the conditional logic
-    let mut chart_title = "Speed History: Select a node".to_string();
-    // This Vec needs a lifetime annotation because Dataset borrows data.
-    // We'll create the actual data and datasets inside the 'if let' block.
-    let mut datasets_to_render: Vec<Dataset<'_>> = vec![];
-    let mut max_speed = 0.0; // Initialize max_speed
+        let text_area = row_content_chunks[0];
+        let chart_placeholder_area = row_content_chunks[1];
 
-    if let Some(index) = selected_index {
-        if let Some((name, url)) = app.servers.get(index) {
-            // Data exists for the selected server, access metrics via URL
-            if let Some(Ok(metrics)) = app.metrics.get(url) {
-                chart_title = format!("Speed History: {}", name);
-                // Use the pre-calculated chart data from app state
-                if let (Some(chart_data_in), Some(chart_data_out)) =
-                    (&metrics.chart_data_in, &metrics.chart_data_out)
-                {
-                    // Calculate max speed from the chart data stored in app state
-                    max_speed = chart_data_in
-                        .iter()
-                        .chain(chart_data_out.iter())
-                        .map(|&(_, y)| y)
-                        .fold(0.0, f64::max);
+        // Get metrics and determine style
+        let metrics_result = app.metrics.get(url);
+        let (text, style) = match metrics_result {
+            Some(Ok(metrics)) => (
+                create_list_item_text(name, metrics), // Use existing helper
+                Style::default().fg(Color::Green),
+            ),
+            Some(Err(_)) => (
+                format!("{:<20} | Status: Stopped", name),
+                Style::default().fg(Color::Yellow),
+            ),
+            None => (
+                format!("{:<20} | Status: Unknown", name),
+                Style::default().fg(Color::DarkGray),
+            ),
+        };
 
-                    // Create datasets borrowing data directly from app state (metrics)
-                    // The borrow checker is happy because `metrics` (and thus the chart data)
-                    // lives as long as `app`, which is longer than the chart rendering.
-                    datasets_to_render = vec![
-                        Dataset::default()
-                            .name("In (B/s)")
-                            .marker(symbols::Marker::Braille)
-                            .graph_type(GraphType::Line)
-                            .style(Style::default().fg(Color::Cyan))
-                            .data(chart_data_in), // Borrow from app state
-                        Dataset::default()
-                            .name("Out (B/s)")
-                            .marker(symbols::Marker::Braille)
-                            .graph_type(GraphType::Line)
-                            .style(Style::default().fg(Color::Magenta))
-                            .data(chart_data_out), // Borrow from app state
-                    ];
-                } else {
-                    // Handle case where chart data hasn't been populated yet in metrics
-                    chart_title = format!("Speed History: {} (Calculating...)", name);
-                    // datasets_to_render remains empty
-                }
+        // Render the text part
+        let text_paragraph = Paragraph::new(text).style(style);
+        f.render_widget(text_paragraph, text_area);
+
+        // --- Render the Speed In Chart (using available pre-calculated data) ---
+        let chart_data = match metrics_result {
+            Some(Ok(metrics)) => metrics.chart_data_in.as_deref(), // Get Option<&[(f64, f64)]>
+            _ => None, // No data if metrics failed or are None
+        };
+
+        if let Some(data) = chart_data {
+            if data.len() >= 2 {
+                // Only render if we have at least 2 points for a line
+                let datasets = vec![
+                    Dataset::default()
+                        .name("Speed In")
+                        .marker(symbols::Marker::Braille)
+                        .graph_type(GraphType::Line)
+                        .style(Style::default().fg(Color::Green)) // Use green for inbound
+                        .data(data),
+                ];
+
+                // Determine X-axis bounds based on the number of data points
+                // Data is already (index, value), so index is 0 to len-1
+                let x_bounds = [0.0, (data.len() - 1).max(1) as f64];
+
+                // Determine Y-axis bounds dynamically
+                let y_max = data.iter().map(|&(_, y)| y).fold(f64::NAN, f64::max);
+                let y_bounds = [0.0, y_max.max(1.0)]; // Ensure at least 1.0 height, handle NaN
+
+                let chart = Chart::new(datasets)
+                    .block(
+                        Block::default()
+                            .title(Span::styled(
+                                "Speed In (Bps)",
+                                Style::default().fg(Color::White),
+                            ))
+                            .borders(Borders::LEFT),
+                    )
+                    .x_axis(
+                        Axis::default()
+                            // .title(Line::from("Time ->").style(Style::default().fg(Color::Gray))) // Title often clutters small charts
+                            .style(Style::default().fg(Color::DarkGray))
+                            .bounds(x_bounds),
+                    )
+                    .y_axis(
+                        Axis::default()
+                            .title(Line::from(" Bps").style(Style::default().fg(Color::Gray))) // Add space for alignment
+                            .style(Style::default().fg(Color::DarkGray))
+                            .bounds(y_bounds) // Use calculated Y bounds
+                            .labels(vec![
+                                Span::from("0"),                     // Start label
+                                Span::from(format!("{:.0}", y_max)), // Max label
+                            ]),
+                    );
+
+                f.render_widget(chart, chart_placeholder_area);
             } else {
-                // Handle case where metrics are Error or None for the selected server's URL
-                chart_title = format!("Speed History: {} (No Data)", name);
-                // datasets_to_render remains empty
+                // Not enough data points, render placeholder
+                let placeholder = Block::default().borders(Borders::LEFT).title(Span::styled(
+                    "Speed In (no data)",
+                    Style::default().fg(Color::DarkGray),
+                ));
+                f.render_widget(placeholder, chart_placeholder_area);
             }
         } else {
-            // Index out of bounds, keep defaults but set error title
-            chart_title = "Speed History: Error".to_string();
-            // datasets_to_render remains empty, max_speed remains 0.0
+            // No metrics available (error or initial state), render placeholder
+            let placeholder = Block::default().borders(Borders::LEFT).title(Span::styled(
+                "Speed In (N/A)",
+                Style::default().fg(Color::DarkGray),
+            ));
+            f.render_widget(placeholder, chart_placeholder_area);
         }
-    } // else: No server selected, keep defaults:
-    // chart_title = "Speed History: Select a node"
-    // datasets_to_render remains empty, max_speed remains 0.0
+    }
+} // End of render_custom_node_rows
 
-    // The tuple is now correctly destructured above, so these lines are redundant
-    // let chart_title = datasets.0; // Removed
-    // let chart_datasets = datasets.1; // Removed - use 'datasets' directly now
-    // let max_speed = datasets.2; // Removed
-
-    // Determine Y-axis bounds and labels based on max_speed (already destructured)
-    // Determine Y-axis bounds and labels based on max_speed (already calculated)
-    let (y_max, y_label_suffix) = if datasets_to_render.is_empty() || max_speed <= 1.0_f64 {
-        (1.0_f64, " B/s") // Avoid 0 bound, show B/s if no data or very low speed
-    } else {
-        let max_val = max_speed; // Use max_speed directly (already f64)
-        if max_val < 1_000.0_f64 {
-            (max_val.ceil(), " B/s") // ceil() works on f64
-        } else if max_val < 1_000_000.0_f64 {
-            ((max_val / 1_000.0_f64).ceil() * 1_000.0_f64, " KB/s")
-        } else if max_val < 1_000_000_000.0_f64 {
-            (
-                (max_val / 1_000_000.0_f64).ceil() * 1_000_000.0_f64,
-                " MB/s",
-            )
-        } else {
-            (
-                (max_val / 1_000_000_000.0_f64).ceil() * 1_000_000_000.0_f64,
-                " GB/s",
-            )
-        }
-    };
-
-    let y_labels: Vec<Span> = (0..=3) // Generate 4 labels (0%, 33%, 66%, 100% of max)
-        .map(|i| {
-            let val = y_max * (i as f64 / 3.0);
-            let formatted_val = if y_label_suffix == " B/s" {
-                format!("{:.0}", val)
-            } else if y_label_suffix == " KB/s" {
-                format!("{:.1}", val / 1_000.0)
-            } else if y_label_suffix == " MB/s" {
-                format!("{:.1}", val / 1_000_000.0)
-            } else {
-                // GB/s
-                format!("{:.1}", val / 1_000_000_000.0)
-            };
-            Span::raw(format!("{}{}", formatted_val, y_label_suffix))
-        })
-        .collect();
-
-    let chart = Chart::new(datasets_to_render) // Use the datasets created/assigned above
-        .block(
-            Block::default()
-                .title(Span::styled(
-                    chart_title, // Use chart_title directly
-                    Style::default().fg(Color::White),
-                ))
-                .borders(Borders::ALL),
-        )
-        .x_axis(
-            Axis::default()
-                .title("Time (updates)")
-                .style(Style::default().fg(Color::Gray))
-                .bounds([0.0, crate::app::SPARKLINE_HISTORY_LENGTH as f64]), // X-axis from 0 to history length
-        )
-        .y_axis(
-            Axis::default()
-                .title(format!("Speed ({})", y_label_suffix.trim()))
-                .style(Style::default().fg(Color::Gray))
-                .bounds([0.0, y_max]) // Y-axis from 0 to calculated max
-                .labels(y_labels), // Use generated labels
-        )
-        .legend_position(Some(LegendPosition::TopRight)); // Show legend (Remove non-existent legend_style)
-
-    f.render_widget(chart, area);
-}
+// --- Chart Rendering Removed ---
+// The render_speed_chart function has been removed as per the task requirements.
+// The custom layout in render_custom_node_rows now provides space for charts.
 
 // --- UI Helper Functions ---
 
