@@ -272,6 +272,8 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     // Render Data Rows (starting from index 1)
+    let data_cell_style = Style::default().fg(Color::Gray);
+
     for (i, (name, url)) in app.servers.iter().enumerate() {
         if i + 1 >= vertical_chunks.len() {
             continue;
@@ -369,7 +371,7 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
         for (idx, cell_text) in data_cells.iter().enumerate() {
             if idx < column_chunks.len() - 1 {
                 // Ensure we don't overwrite status column index
-                let cell_paragraph = Paragraph::new(cell_text.clone()).style(style);
+                let cell_paragraph = Paragraph::new(cell_text.clone()).style(data_cell_style);
                 f.render_widget(cell_paragraph, column_chunks[idx]);
             }
         }
