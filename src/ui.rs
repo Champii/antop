@@ -239,38 +239,87 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
 
         // Get metrics and determine style (remains the same)
         let metrics_result = app.metrics.get(url);
-        let (text, style, status_text) = match metrics_result {
+        // Define column widths based on header comment (line 33) + Status
+        let column_constraints = [
+            Constraint::Length(18), // Node
+            Constraint::Length(12), // Uptime
+            Constraint::Length(6),  // Mem MB
+            Constraint::Length(5),  // CPU %
+            Constraint::Length(7),  // Peers
+            Constraint::Length(10), // BW In
+            Constraint::Length(10), // BW Out
+            Constraint::Length(7),  // Records
+            Constraint::Length(8),  // Reward
+            Constraint::Length(4),  // Err
+            Constraint::Length(8),  // Status
+            Constraint::Min(0),     // Spacer to fill text_area
+        ];
+        let column_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(column_constraints.as_ref())
+            .split(text_area);
+
+        // Get metrics data vector and determine style + status
+        let (data_cells, style, status_text) = match metrics_result {
             Some(Ok(metrics)) => (
-                create_list_item_text(name, metrics), // Use updated helper
+                create_list_item_cells(name, metrics), // Use new helper returning Vec<String>
                 Style::default().fg(Color::Green),
                 "Running".to_string(),
             ),
-            Some(Err(_)) => (
-                // Format error state consistently with header
-                format!(
-                    "{:<18} | {:<12} | {:<6} | {:<5} | {:<7} | {:<10} | {:<10} | {:<7} | {:<8} | {:<4}",
-                    name, "-", "-", "-", "-", "-", "-", "-", "-", "-"
-                ),
-                Style::default().fg(Color::Yellow),
-                "Stopped".to_string(),
-            ),
-            None => (
-                // Format unknown state consistently with header
-                format!(
-                    "{:<18} | {:<12} | {:<6} | {:<5} | {:<7} | {:<10} | {:<10} | {:<7} | {:<8} | {:<4}",
-                    name, "-", "-", "-", "-", "-", "-", "-", "-", "-"
-                ),
-                Style::default().fg(Color::DarkGray),
-                "Unknown".to_string(),
-            ),
+            Some(Err(_)) => {
+                // Create placeholder cells for error state
+                let cells = vec![
+                    format!("{:<18}", name), // Node
+                    format!("{:<12}", "-"),  // Uptime
+                    format!("{:<6}", "-"),   // Mem MB
+                    format!("{:<5}", "-"),   // CPU %
+                    format!("{:<7}", "-"),   // Peers
+                    format!("{:<10}", "-"),  // BW In
+                    format!("{:<10}", "-"),  // BW Out
+                    format!("{:<7}", "-"),   // Records
+                    format!("{:<8}", "-"),   // Reward
+                    format!("{:<4}", "-"),   // Err
+                ];
+                (
+                    cells,
+                    Style::default().fg(Color::Yellow),
+                    "Error".to_string(),
+                ) // Changed status text
+            }
+            None => {
+                // Create placeholder cells for unknown state
+                let cells = vec![
+                    format!("{:<18}", name), // Node
+                    format!("{:<12}", "-"),  // Uptime
+                    format!("{:<6}", "-"),   // Mem MB
+                    format!("{:<5}", "-"),   // CPU %
+                    format!("{:<7}", "-"),   // Peers
+                    format!("{:<10}", "-"),  // BW In
+                    format!("{:<10}", "-"),  // BW Out
+                    format!("{:<7}", "-"),   // Records
+                    format!("{:<8}", "-"),   // Reward
+                    format!("{:<4}", "-"),   // Err
+                ];
+                (
+                    cells,
+                    Style::default().fg(Color::DarkGray),
+                    "Unknown".to_string(),
+                )
+            }
         };
 
-        // Combine formatted data with status
-        let full_text = format!("{} | {:<8}", text, status_text);
+        // Render each data cell in its column chunk
+        for (idx, cell_text) in data_cells.iter().enumerate() {
+            if idx < column_chunks.len() - 1 {
+                // Ensure we don't overwrite status column index
+                let cell_paragraph = Paragraph::new(cell_text.clone()).style(style);
+                f.render_widget(cell_paragraph, column_chunks[idx]);
+            }
+        }
 
-        // Render the text part
-        let text_paragraph = Paragraph::new(full_text).style(style);
-        f.render_widget(text_paragraph, text_area);
+        // Render status in the dedicated status column chunk (index 10)
+        let status_paragraph = Paragraph::new(format!("{:<8}", status_text)).style(style); // Pad status
+        f.render_widget(status_paragraph, column_chunks[10]);
 
         // Render the Speed In Chart (remains the same)
         let chart_data = match metrics_result {
@@ -392,31 +441,33 @@ fn format_speed_bps(speed_bps: Option<f64>) -> String {
     }
 }
 
-// Helper to create the formatted data string (without labels) for a list item
-fn create_list_item_text(name: &str, metrics: &NodeMetrics) -> String {
-    // Calculate total errors (remains the same)
+// Helper to create a vector of formatted data cell strings for a list item
+fn create_list_item_cells(name: &str, metrics: &NodeMetrics) -> Vec<String> {
+    // Calculate total errors
     let put_err = metrics.put_record_errors.unwrap_or(0);
     let conn_in_err = metrics.incoming_connection_errors.unwrap_or(0);
     let conn_out_err = metrics.outgoing_connection_errors.unwrap_or(0);
     let kad_err = metrics.kad_get_closest_peers_errors.unwrap_or(0);
     let total_errors = put_err + conn_in_err + conn_out_err + kad_err;
 
-    // Format values according to HEADER widths, without labels
-    format!(
-        "{:<18} | {:<12} | {:<6} | {:<5} | {:<7} | {:<10} | {:<10} | {:<7} | {:<8} | {:<4}",
-        name,
-        format_uptime(metrics.uptime_seconds),
-        format_float(metrics.memory_used_mb, 0),
-        format_float(metrics.cpu_usage_percentage, 0),
-        format_peers(
-            metrics.connected_peers.map(|v| v as u32),
-            metrics.peers_in_routing_table.map(|v| v as u32)
-        ), // Use new helper
-        format_speed_bps(metrics.speed_in_bps), // Use speed formatter
-        format_speed_bps(metrics.speed_out_bps), // Use speed formatter
-        format_option(metrics.records_stored),
-        format_option(metrics.reward_wallet_balance), // Assuming balance is simple number or '-'
-        total_errors,
-        // Status ("Running") is handled in render_custom_node_rows
-    )
+    // Format values according to HEADER widths and push to vector
+    vec![
+        format!("{:<18}", name),                                         // Node
+        format!("{:<12}", format_uptime(metrics.uptime_seconds)),        // Uptime
+        format!("{:<6}", format_float(metrics.memory_used_mb, 0)),       // Mem MB
+        format!("{:<5}", format_float(metrics.cpu_usage_percentage, 0)), // CPU %
+        format!(
+            "{:<7}",
+            format_peers(
+                metrics.connected_peers.map(|v| v as u32),
+                metrics.peers_in_routing_table.map(|v| v as u32)
+            )
+        ), // Peers
+        format!("{:<10}", format_speed_bps(metrics.speed_in_bps)),       // BW In
+        format!("{:<10}", format_speed_bps(metrics.speed_out_bps)),      // BW Out
+        format!("{:<7}", format_option(metrics.records_stored)),         // Records
+        format!("{:<8}", format_option(metrics.reward_wallet_balance)),  // Reward
+        format!("{:<4}", total_errors),                                  // Err
+                                                                         // Status is handled separately in render_custom_node_rows
+    ]
 }
