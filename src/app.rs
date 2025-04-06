@@ -29,6 +29,14 @@ pub struct App {
     pub total_cpu_usage: f64,
     pub total_allocated_storage: u64,
     pub total_used_storage_bytes: Option<u64>, // NEW: Store calculated used storage (Option for errors)
+    // NEW: Add fields for pre-calculated summary data
+    pub summary_total_in_speed: f64,
+    pub summary_total_out_speed: f64,
+    pub summary_total_data_in_bytes: u64,
+    pub summary_total_data_out_bytes: u64,
+    pub summary_total_records: u64,
+    pub summary_total_rewards: u64,
+    pub summary_total_live_peers: u64,
     // Config
     pub storage_base_path: PathBuf, // NEW: Store the base path for storage
                                     // pub table_state: TableState, // Removed, unused
@@ -65,6 +73,14 @@ impl App {
             total_cpu_usage: 0.0,
             total_allocated_storage: 0,
             total_used_storage_bytes: None, // Initialize as None
+            // NEW: Initialize summary fields
+            summary_total_in_speed: 0.0,
+            summary_total_out_speed: 0.0,
+            summary_total_data_in_bytes: 0,
+            summary_total_data_out_bytes: 0,
+            summary_total_records: 0,
+            summary_total_rewards: 0,
+            summary_total_live_peers: 0,
             // Store config
             storage_base_path,
             // table_state: TableState::default(), // Removed, unused
@@ -182,6 +198,13 @@ impl App {
         let mut current_total_speed_in: f64 = 0.0; // NEW
         let mut current_total_speed_out: f64 = 0.0; // NEW
         let mut current_total_cpu: f64 = 0.0;
+        // NEW: Initialize accumulators for other summary fields
+        let mut current_total_data_in: u64 = 0;
+        let mut current_total_data_out: u64 = 0;
+        let mut current_total_records: u64 = 0;
+        let mut current_total_rewards: u64 = 0;
+        let mut current_total_live_peers: u64 = 0;
+
         for metrics in self.metrics.values().flatten() {
             // Use flatten()
             if let Some(cpu) = metrics.cpu_usage_percentage {
@@ -190,9 +213,24 @@ impl App {
             // Sum speeds for total history NEW
             current_total_speed_in += metrics.speed_in_bps.unwrap_or(0.0);
             current_total_speed_out += metrics.speed_out_bps.unwrap_or(0.0);
+
+            // NEW: Sum other summary fields
+            current_total_data_in += metrics.bandwidth_inbound_bytes.unwrap_or(0);
+            current_total_data_out += metrics.bandwidth_outbound_bytes.unwrap_or(0);
+            current_total_records += metrics.records_stored.unwrap_or(0);
+            current_total_rewards += metrics.reward_wallet_balance.unwrap_or(0);
+            current_total_live_peers += metrics.connected_peers.unwrap_or(0);
         }
         self.total_cpu_usage = current_total_cpu;
         self.total_allocated_storage = self.servers.len() as u64 * STORAGE_PER_NODE_BYTES;
+        // NEW: Store calculated summary totals
+        self.summary_total_in_speed = current_total_speed_in;
+        self.summary_total_out_speed = current_total_speed_out;
+        self.summary_total_data_in_bytes = current_total_data_in;
+        self.summary_total_data_out_bytes = current_total_data_out;
+        self.summary_total_records = current_total_records;
+        self.summary_total_rewards = current_total_rewards;
+        self.summary_total_live_peers = current_total_live_peers;
 
         // Update total speed history NEW
         let total_in_val = current_total_speed_in.max(0.0) as u64;

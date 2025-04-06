@@ -149,32 +149,11 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     f.render_widget(storage_gauge, gauge_chunks[1]);
 
     // --- Bandwidth Area --- NEW STRUCTURE
-    // Calculate totals first
-    let mut total_in_speed: f64 = 0.0;
-    let mut total_out_speed: f64 = 0.0;
-    let mut total_data_in_bytes: u64 = 0; // Need this here now
-    let mut total_data_out_bytes: u64 = 0; // Need this here now
-
-    // Also calculate Recs/Rwds/Peers totals here as well, might as well do it in one loop
-    let mut total_records: u64 = 0;
-    let mut total_rewards: u64 = 0;
-    let mut total_live_peers: u64 = 0;
-
-    for metrics in app.metrics.values().flatten() {
-        total_in_speed += metrics.speed_in_bps.unwrap_or(0.0);
-        total_out_speed += metrics.speed_out_bps.unwrap_or(0.0);
-        total_data_in_bytes += metrics.bandwidth_inbound_bytes.unwrap_or(0); // Calculate here
-        total_data_out_bytes += metrics.bandwidth_outbound_bytes.unwrap_or(0); // Calculate here
-        total_records += metrics.records_stored.unwrap_or(0); // Calculate here
-        total_rewards += metrics.reward_wallet_balance.unwrap_or(0); // Calculate here
-        total_live_peers += metrics.connected_peers.unwrap_or(0); // Calculate here
-    }
-
-    // Format values needed for bandwidth section
-    let formatted_data_in = format_option_u64_bytes(Some(total_data_in_bytes));
-    let formatted_data_out = format_option_u64_bytes(Some(total_data_out_bytes));
-    let total_in_speed_str = format_speed_bps(Some(total_in_speed));
-    let total_out_speed_str = format_speed_bps(Some(total_out_speed));
+    // Read pre-calculated totals directly from app state
+    let formatted_data_in = format_option_u64_bytes(Some(app.summary_total_data_in_bytes));
+    let formatted_data_out = format_option_u64_bytes(Some(app.summary_total_data_out_bytes));
+    let total_in_speed_str = format_speed_bps(Some(app.summary_total_in_speed));
+    let total_out_speed_str = format_speed_bps(Some(app.summary_total_out_speed));
 
     // Get chart data
     let total_in_chart_data: Vec<(f64, f64)> = app
@@ -287,14 +266,14 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     let recs_text = Line::from(vec![
         Span::styled("Recs:", Style::default().fg(Color::DarkGray)),
         Span::styled(
-            format!("{}", total_records),
+            format!("{}", app.summary_total_records), // Use pre-calculated value
             Style::default().fg(Color::White),
         ),
     ]);
     let rwds_text = Line::from(vec![
         Span::styled("Rwds:", Style::default().fg(Color::DarkGray)),
         Span::styled(
-            format!("{}", total_rewards),
+            format!("{}", app.summary_total_rewards), // Use pre-calculated value
             Style::default().fg(Color::Yellow),
         ),
     ]);
@@ -312,7 +291,7 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     let peers_text = Line::from(vec![
         Span::styled("Peers:", Style::default().fg(Color::DarkGray)),
         Span::styled(
-            format!("{}", total_live_peers),
+            format!("{}", app.summary_total_live_peers), // Use pre-calculated value
             Style::default().fg(Color::Blue),
         ),
     ]);
