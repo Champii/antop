@@ -19,7 +19,7 @@ use crate::{
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let initial_servers = match find_metrics_servers(&cli.path) {
+    let initial_servers = match find_metrics_servers(&cli.log_path) {
         Ok(servers) => {
             if servers.is_empty() {
                 // Log to stderr if no servers found initially
