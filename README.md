@@ -23,6 +23,12 @@ A terminal dashboard for monitoring Autonomi node instances.
 
 *   [Rust](https://www.rust-lang.org/tools/install) (stable toolchain)
 
+### From Crates.io (recommended)
+
+```bash
+cargo install antop
+```
+
 ### From Source
 
 1.  Clone the repository:
@@ -35,12 +41,6 @@ A terminal dashboard for monitoring Autonomi node instances.
     cargo build --release
     ```
 3.  The executable will be located at `target/release/antop`.
-
-### From Crates.io 
-
-```bash
-cargo install antop
-```
 
 ## Usage
 
@@ -69,18 +69,7 @@ cargo install antop
 1.  **Setup:** Follow the "Installation from Source" steps.
 2.  **Run in Debug Mode:**
     ```bash
-    cargo run
-    # Or with log pattern override
     cargo run -- --logs "/path/to/logs/*.log"
-    ```
-3.  **Run Tests:**
-    ```bash
-    cargo test
-    ```
-4.  **Linting & Formatting:**
-    ```bash
-    cargo fmt # Format code
-    cargo clippy # Run linter
     ```
 
 ## License
