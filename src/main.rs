@@ -30,7 +30,6 @@ async fn main() -> Result<()> {
                 Vec::new()
             } else {
                 // Log to stdout before TUI starts
-                // println!("Found {} initial metrics servers.", servers.len()); // Commented out
                 servers
             }
         }

@@ -29,34 +29,19 @@ pub fn find_metrics_servers(node_path_glob: &str) -> Result<Vec<(String, String)
                                 }
                                 Ok(None) => {
                                     // Log file exists, but no metrics address inside
-                                    // eprintln!(
-                                    //    "Warning: No metrics address found in log file for server {}: {:?}",
-                                    //    name,
-                                    //    log_file_path
-                                    // );
                                 }
-                                Err(e) => {
+                                Err(_err) => {
                                     // Error reading or processing the log file content
-                                    // eprintln!(
-                                    //     "Error processing log file for server {}: {:?}: {}",
-                                    //     name, log_file_path, e
-                                    // );
                                 }
                             }
                         } else {
                             // Log file doesn't exist for this node directory
-                            // eprintln!("Warning: Log file not found for server {}: {:?}", name, log_file_path);
                         }
                     } else {
                         // Path structure didn't allow extracting a name
-                        // eprintln!(
-                        //     "Warning: Could not extract server name from path: {:?}",
-                        //     node_dir
-                        // );
                     }
                 }
             }
-            // Err(e) => eprintln!("Error processing node path glob entry: {}", e),
             Err(_e) => { /* Optionally log this error elsewhere, e.g., to a file */ }
         }
     }

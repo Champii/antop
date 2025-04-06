@@ -93,8 +93,6 @@ pub async fn run_app<B: Backend>(
 
                     }
                     Err(e) => {
-                        // Log error, maybe display in UI status bar later
-                        // eprintln!("Error re-discovering metrics servers: {}", e);
                         app.status_message = Some(format!("Error re-discovering metrics: {}", e));
                     }
                 }
@@ -111,11 +109,9 @@ pub async fn run_app<B: Backend>(
                     }
                     Ok(Ok(false)) => {}
                     Ok(Err(e)) => {
-                        // eprintln!("Input polling error: {}", e);
                         app.status_message = Some(format!("Input polling error: {}", e));
                     }
                     Err(e) => {
-                         // eprintln!("Input task spawn error: {}", e);
                          app.status_message = Some(format!("Input task spawn error: {}", e));
                     }
                 }
