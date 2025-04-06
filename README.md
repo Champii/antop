@@ -7,7 +7,9 @@
 
 A terminal dashboard for monitoring Autonomi `antnode` instances.
 
-![Screenshot Placeholder](./docs/screenshot.png) <!-- Add a screenshot later -->
+<!-- i want a img here -->
+![Screenshot](./media/screenshot.png)
+
 
 ## Features
 
