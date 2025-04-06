@@ -1,6 +1,6 @@
 [package]
 name = "antop"
-version = "0.1.5"
+version = "0.1.6"
 edition = "2024"
 license = "MIT"
 description = "A TUI application for monitoring antnode instances. Discovers nodes via log files, fetches metrics (resource usage, peers, bandwidth, etc.), calculates network speeds, and displays the information in a terminal dashboard with sparklines."
