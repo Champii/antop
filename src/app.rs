@@ -1,5 +1,4 @@
 use crate::metrics::{NodeMetrics, parse_metrics};
-// use ratatui::widgets::{ListState, TableState}; // Removed, unused
 use glob::glob;
 use std::{
     collections::{HashMap, VecDeque},
@@ -7,7 +6,7 @@ use std::{
     io,            // Add io for error handling
     path::PathBuf, // Add PathBuf
     time::Instant,
-}; // Add glob
+};
 
 // Number of data points to keep for sparklines
 pub const SPARKLINE_HISTORY_LENGTH: usize = 60;
@@ -25,12 +24,12 @@ pub struct App {
     pub speed_in_history: HashMap<String, VecDeque<u64>>, // History for Speed In sparkline
     pub speed_out_history: HashMap<String, VecDeque<u64>>, // History for Speed Out sparkline
     // Calculated totals
-    pub total_speed_in_history: VecDeque<u64>, // NEW: History for total speed in
-    pub total_speed_out_history: VecDeque<u64>, // NEW: History for total speed out
+    pub total_speed_in_history: VecDeque<u64>, // History for total speed in
+    pub total_speed_out_history: VecDeque<u64>, // History for total speed out
     pub total_cpu_usage: f64,
     pub total_allocated_storage: u64,
-    pub total_used_storage_bytes: Option<u64>, // NEW: Store calculated used storage (Option for errors)
-    // NEW: Add fields for pre-calculated summary data
+    pub total_used_storage_bytes: Option<u64>, // Store calculated used storage (Option for errors)
+    // Add fields for pre-calculated summary data
     pub summary_total_in_speed: f64,
     pub summary_total_out_speed: f64,
     pub summary_total_data_in_bytes: u64,
@@ -39,11 +38,8 @@ pub struct App {
     pub summary_total_rewards: u64,
     pub summary_total_live_peers: u64,
     // Config & Discovered Paths
-    // pub node_path_glob: String, // Store the glob pattern used for discovery - REMOVED (unused)
     pub node_record_store_paths: HashMap<String, PathBuf>, // Map server name to its RECORD STORE path
-    pub status_message: Option<String>, // NEW: For displaying messages/errors in the footer
-                                        // pub table_state: TableState, // Removed, unused
-                                        // pub list_state: ListState, // Removed, unused
+    pub status_message: Option<String>, // For displaying messages/errors in the footer
 }
 
 impl App {
@@ -58,64 +54,31 @@ impl App {
         }
 
         // Discover record store paths from the glob pattern
-        let mut node_record_store_paths = HashMap::new(); // Renamed
-        // eprintln!(
-        //     "🔍 Discovering record store paths using glob: {}",
-        //     node_path_glob_str
-        // );
+        let mut node_record_store_paths = HashMap::new();
         match glob(&node_path_glob_str) {
             Ok(paths) => {
                 for entry in paths {
                     match entry {
                         Ok(node_dir) => {
-                            // eprintln!("  -> Found path: {:?}", node_dir);
                             if node_dir.is_dir() {
-                                // eprintln!("    ✅ It's a directory.");
                                 // Look directly for record_store
                                 let record_store_path = node_dir.join("record_store");
-                                // eprintln!(
-                                //     "    ❓ Checking for record_store subdir: {:?}",
-                                //     record_store_path
-                                // );
                                 // Check if the record_store subdirectory exists and is a directory
                                 if record_store_path.is_dir() {
-                                    // eprintln!(
-                                    //     "      ✅ Record store subdir found and is a directory."
-                                    // );
                                     if let Some(server_name) =
                                         node_dir.file_name().and_then(|n| n.to_str())
                                     {
-                                        // eprintln!(
-                                        //     "        ➕ Adding server: '{}' with path: {:?}",
-                                        //     server_name, record_store_path
-                                        // );
                                         // Store the record_store path directly
                                         node_record_store_paths
                                             .insert(server_name.to_string(), record_store_path);
-                                    } else {
-                                        // eprintln!(
-                                        //     "        ❌ Warning: Could not extract server name from node path: {:?}",
-                                        //     node_dir
-                                        // );
                                     }
-                                } else {
-                                    // eprintln!(
-                                    //     "      ❌ Record store subdir missing or not a directory."
-                                    // );
                                 }
-                            } else {
-                                // eprintln!("    ❌ Not a directory, skipping.");
                             }
                         }
-                        // Err(e) => eprintln!("  ❌ Error processing glob entry: {}", e),
                         Err(_e) => { /* Optionally log elsewhere */ }
                     }
                 }
             }
-            // Err(e) => eprintln!(
-            //     "❌ Error reading node path glob pattern: {}. Storage size might be inaccurate.",
-            //     e
-            // ),
             Err(_e) => { /* Optionally log elsewhere */ }
         }
 
@@ -128,12 +91,12 @@ impl App {
             speed_out_history,
             previous_update_time: now,
             // Initialize totals
-            total_speed_in_history: VecDeque::with_capacity(SPARKLINE_HISTORY_LENGTH), // NEW
-            total_speed_out_history: VecDeque::with_capacity(SPARKLINE_HISTORY_LENGTH), // NEW
+            total_speed_in_history: VecDeque::with_capacity(SPARKLINE_HISTORY_LENGTH),
+            total_speed_out_history: VecDeque::with_capacity(SPARKLINE_HISTORY_LENGTH),
             total_cpu_usage: 0.0,
             total_allocated_storage: 0, // Will be calculated later based on discovered nodes
             total_used_storage_bytes: None, // Initialize as None
-            // NEW: Initialize summary fields
+            // Initialize summary fields
             summary_total_in_speed: 0.0,
             summary_total_out_speed: 0.0,
             summary_total_data_in_bytes: 0,
@@ -142,11 +105,8 @@ impl App {
             summary_total_rewards: 0,
             summary_total_live_peers: 0,
             // Store config & discovered paths
-            // node_path_glob: node_path_glob_str, // REMOVED (unused)
-            node_record_store_paths, // Renamed
-            status_message: None,    // Initialize status message
-                                     // table_state: TableState::default(), // Removed, unused
-                                     // list_state: ListState::default(), // Removed, unused
+            node_record_store_paths,
+            status_message: None, // Initialize status message
         }
     }
 
@@ -257,10 +217,10 @@ impl App {
         self.last_update = update_start_time;
 
         // --- Calculate Totals ---
-        let mut current_total_speed_in: f64 = 0.0; // NEW
-        let mut current_total_speed_out: f64 = 0.0; // NEW
+        let mut current_total_speed_in: f64 = 0.0;
+        let mut current_total_speed_out: f64 = 0.0;
         let mut current_total_cpu: f64 = 0.0;
-        // NEW: Initialize accumulators for other summary fields
+        // Initialize accumulators for other summary fields
         let mut current_total_data_in: u64 = 0;
         let mut current_total_data_out: u64 = 0;
         let mut current_total_records: u64 = 0;
@@ -272,11 +232,11 @@ impl App {
             if let Some(cpu) = metrics.cpu_usage_percentage {
                 current_total_cpu += cpu;
             }
-            // Sum speeds for total history NEW
+            // Sum speeds for total history
             current_total_speed_in += metrics.speed_in_bps.unwrap_or(0.0);
             current_total_speed_out += metrics.speed_out_bps.unwrap_or(0.0);
 
-            // NEW: Sum other summary fields
+            // Sum other summary fields
             current_total_data_in += metrics.bandwidth_inbound_bytes.unwrap_or(0);
             current_total_data_out += metrics.bandwidth_outbound_bytes.unwrap_or(0);
             current_total_records += metrics.records_stored.unwrap_or(0);
@@ -286,8 +246,8 @@ impl App {
         self.total_cpu_usage = current_total_cpu;
         // Calculate allocated storage based on the number of discovered nodes with record stores
         self.total_allocated_storage =
-            self.node_record_store_paths.len() as u64 * STORAGE_PER_NODE_BYTES; // Use renamed map
-        // NEW: Store calculated summary totals
+            self.node_record_store_paths.len() as u64 * STORAGE_PER_NODE_BYTES;
+        // Store calculated summary totals
         self.summary_total_in_speed = current_total_speed_in;
         self.summary_total_out_speed = current_total_speed_out;
         self.summary_total_data_in_bytes = current_total_data_in;
@@ -296,7 +256,7 @@ impl App {
         self.summary_total_rewards = current_total_rewards;
         self.summary_total_live_peers = current_total_live_peers;
 
-        // Update total speed history NEW
+        // Update total speed history
         let total_in_val = current_total_speed_in.max(0.0) as u64;
         let total_out_val = current_total_speed_out.max(0.0) as u64;
 
@@ -315,29 +275,16 @@ impl App {
         let calculation_possible = true;
         // Iterate over discovered record store paths
         for record_store_path in self.node_record_store_paths.values() {
-            // Use renamed map
             // The path IS the record_store path, so check it directly
             if record_store_path.is_dir() {
                 // Check should pass if it was added correctly
                 match calculate_dir_size(record_store_path) {
                     // Calculate size of record_store_path
                     Ok(size) => current_total_used += size,
-                    // Err(e) => {
-                    //     // Log error for specific path, but continue calculation
-                    //     eprintln!(
-                    //         "Warning: Failed to calculate size for {:?}: {}. Total size may be inaccurate.",
-                    //         record_store_path,
-                    //         e // Log the path we tried to calculate
-                    //     );
-                    // }
                     Err(_e) => { /* Optionally log elsewhere */ }
                 }
             } else {
-                // This case should ideally not happen if App::new logic is correct, but log just in case
-                // eprintln!(
-                //     "Warning: Path from map is not a directory (should not happen): {:?}",
-                //     record_store_path
-                // );
+                // This case should ideally not happen if App::new logic is correct
             }
         }
 
@@ -361,11 +308,6 @@ fn calculate_dir_size(path: &PathBuf) -> io::Result<u64> {
             let entry_path = entry.path();
             let entry_metadata = match fs::symlink_metadata(&entry_path) {
                 Ok(md) => md,
-                // Err(e) => {
-                //     // Skip files/dirs we can't get metadata for (e.g., permission denied)
-                //     eprintln!("Skipping {:?}: {}", entry_path, e);
-                //     continue;
-                // }
                 Err(_e) => continue, // Skip files/dirs we can't get metadata for
             };
 
@@ -375,14 +317,6 @@ fn calculate_dir_size(path: &PathBuf) -> io::Result<u64> {
                 // Let's try skipping it:
                 match calculate_dir_size(&entry_path) {
                     Ok(size) => total_size += size,
-                    // Err(e) => {
-                    //     eprintln!(
-                    //         "Error calculating subdirectory size {:?}: {}. Skipping.",
-                    //         entry_path, e
-                    //     );
-                    //     // Continue to next entry instead of returning the error
-                    //     // return Err(e);
-                    // }
                     Err(_e) => { /* Optionally log elsewhere */ }
                 }
             } else if entry_metadata.is_file() {
