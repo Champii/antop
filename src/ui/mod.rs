@@ -127,7 +127,7 @@ pub async fn run_app<B: Backend>(
 fn ui(f: &mut Frame, app: &mut App) {
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
-        .margin(0)
+        .margin(1)
         .constraints(
             [
                 Constraint::Length(1),
