@@ -30,7 +30,7 @@ cargo install antop
 
 1.  Clone the repository:
     ```bash
-    git clone https://github.com/champii/antop.git # Replace with actual URL later
+    git clone https://github.com/champii/antop.git
     cd antop
     ```
 2.  Build the release binary:
