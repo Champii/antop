@@ -1,18 +1,9 @@
-// Declare the submodules within the ui module
 pub mod formatters;
 pub mod widgets;
 
 // --- Imports (Combined and adjusted from src/ui.rs) ---
-// Import necessary items from crate modules
-use crate::{
-    app::App,
-    cli::Cli,
-    discovery::find_metrics_servers,
-    fetch::fetch_metrics,
-    // NodeMetrics is implicitly used via widgets/formatters
-};
-// Import local UI submodules (now using `self`)
-use self::widgets::{render_header, render_node_row}; // Be specific
+use self::widgets::{render_header, render_node_row};
+use crate::{app::App, cli::Cli, discovery::find_metrics_servers, fetch::fetch_metrics};
 
 use anyhow::{Context, Result};
 use crossterm::{
@@ -64,7 +55,6 @@ pub async fn run_app<B: Backend>(
     let mut tick_timer = interval(Duration::from_secs(1)); // Refresh data every second
     let mut discover_timer = interval(Duration::from_secs(60)); // Check for new servers every 60s
 
-    // Initial fetch if servers were found initially
     if !app.servers.is_empty() {
         let urls: Vec<String> = app.servers.iter().map(|(_, url)| url.clone()).collect();
         let initial_results = fetch_metrics(&urls).await;
@@ -72,12 +62,10 @@ pub async fn run_app<B: Backend>(
     }
 
     loop {
-        terminal.draw(|f| ui(f, &mut app))?; // Draw UI
+        terminal.draw(|f| ui(f, &mut app))?;
 
-        // Combine timers and input polling
         tokio::select! {
             _ = tick_timer.tick() => {
-                // Fetch metrics for current servers periodically
                 if !app.servers.is_empty() {
                     let urls: Vec<String> = app.servers.iter().map(|(_, url)| url.clone()).collect();
                     let results = fetch_metrics(&urls).await;
@@ -85,27 +73,22 @@ pub async fn run_app<B: Backend>(
                 }
             },
             _ = discover_timer.tick() => {
-                 // Discover servers periodically
                 match find_metrics_servers(cli.logs.as_deref()) {
-                    Ok(mut found_servers) => { // Now Vec<(String, String)>
+                    Ok(mut found_servers) => {
                         // Sort by name, deduplicate by URL (as done in discovery.rs)
                         found_servers.sort_by(|a, b| a.0.cmp(&b.0));
                         found_servers.dedup_by(|a, b| a.1 == b.1);
 
-                        // Add any newly discovered servers to the metrics map
                         for (name, url) in &found_servers {
                             if !app.metrics.contains_key(url) {
                                 app.metrics.insert(url.clone(), Err(format!("Discovered {} - Fetching...", name)));
                             }
                         }
 
-                        // Check if the server list itself has changed (order or content)
                         let lists_differ = app.servers != found_servers;
 
                         if lists_differ {
                             app.servers = found_servers;
-                            // Optional: Remove metrics for servers no longer present
-                            // app.metrics.retain(|url, _| app.servers.iter().any(|(_, u)| u == url));
                         }
 
                     }
@@ -118,26 +101,18 @@ pub async fn run_app<B: Backend>(
             // Poll for keyboard events using tokio's spawn_blocking for crossterm event handling
             result = tokio::task::spawn_blocking(|| event::poll(Duration::from_millis(100))) => {
                  match result {
-                    Ok(Ok(true)) => { // Successfully polled and event is available
+                    Ok(Ok(true)) => {
                         if let Event::Key(key) = event::read()? {
                             if key.code == KeyCode::Char('q') {
-                                return Ok(()); // Quit signal
+                                return Ok(());
                             }
-                            // Handle other keys like scrolling here if needed
-                            // match key.code {
-                            //     KeyCode::Up => app.previous(),
-                            //     KeyCode::Down => app.next(),
-                            //     _ => {}
-                            // }
                         }
                     }
-                    Ok(Ok(false)) => { /* Timeout, no event */ }
+                    Ok(Ok(false)) => {}
                     Ok(Err(e)) => {
-                        // Handle polling error
                         eprintln!("Input polling error: {}", e);
                     }
                     Err(e) => {
-                         // Handle task spawn error
                          eprintln!("Input task spawn error: {}", e);
                     }
                 }
@@ -150,15 +125,14 @@ pub async fn run_app<B: Backend>(
 
 // This function is now internal to the ui module, called by run_app
 fn ui(f: &mut Frame, app: &mut App) {
-    // Main vertical layout: Title, Content Area, Status
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .margin(0)
         .constraints(
             [
-                Constraint::Length(1), // Title/Instructions
-                Constraint::Min(0),    // Content Area (List + Chart)
-                Constraint::Length(1), // Status/Last Update
+                Constraint::Length(1),
+                Constraint::Min(0),
+                Constraint::Length(1),
             ]
             .as_ref(),
         )
@@ -170,7 +144,6 @@ fn ui(f: &mut Frame, app: &mut App) {
     .style(Style::default().fg(Color::White));
     f.render_widget(title, main_chunks[0]);
 
-    // Render the custom node rows in the main content area using the refactored function
     render_custom_node_rows(f, app, main_chunks[1]);
 
     let status_text = format!(
@@ -189,7 +162,7 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
     let inner_area = area.inner(Margin {
         vertical: 1,
         horizontal: 1,
-    }); // Area inside potential borders
+    });
 
     let num_servers = app.servers.len();
     if num_servers == 0 {
@@ -200,24 +173,21 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
         return;
     }
 
-    // Layout: Header row + one row per server
-    let mut constraints = vec![Constraint::Length(1)]; // Header row height
-    constraints.extend(std::iter::repeat(Constraint::Length(1)).take(num_servers)); // Data row height
+    let mut constraints = vec![Constraint::Length(1)];
+    constraints.extend(std::iter::repeat(Constraint::Length(1)).take(num_servers));
 
     let vertical_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints(constraints)
         .split(inner_area);
 
-    // Render Header using the helper function from ui::widgets
-    render_header(f, vertical_chunks[0]); // Uses `self::widgets::render_header`
+    render_header(f, vertical_chunks[0]);
 
-    // Render Data Rows using the helper function from ui::widgets (starting from index 1)
     for (i, (name, url)) in app.servers.iter().enumerate() {
         if i + 1 >= vertical_chunks.len() {
-            continue; // Bounds check
+            continue;
         }
-        let row_area = vertical_chunks[i + 1]; // Get the area for this specific row
-        render_node_row(f, app, row_area, name, url); // Uses `self::widgets::render_node_row`
+        let row_area = vertical_chunks[i + 1];
+        render_node_row(f, app, row_area, name, url);
     }
 }

@@ -17,11 +17,9 @@ pub fn find_metrics_servers(log_pattern_override: Option<&str>) -> Result<Vec<(S
         }
     };
 
-    // This regex needs to be created here or passed in. Creating it here for simplicity.
     let re = Regex::new(r"Metrics server on (\S+)")?;
     let mut servers: Vec<(String, String)> = Vec::new();
 
-    // Use glob to find matching log files
     for entry in glob(&pattern_str).context("Failed to read glob pattern")? {
         match entry {
             Ok(path) => {
@@ -41,7 +39,7 @@ pub fn find_metrics_servers(log_pattern_override: Option<&str>) -> Result<Vec<(S
                             }
                             Ok(None) => {
                                 // Log file found, but no metrics address inside
-                                eprintln!("Warning: No metrics address found in log file: {:?}", path);
+                                // eprintln!("Warning: No metrics address found in log file: {:?}", path);
                             }
                             Err(e) => {
                                 // Error reading or processing the log file content
@@ -57,21 +55,19 @@ pub fn find_metrics_servers(log_pattern_override: Option<&str>) -> Result<Vec<(S
                     }
                 }
             }
-            Err(e) => eprintln!("Error processing glob entry: {}", e), // Consider logging
+            Err(e) => eprintln!("Error processing glob entry: {}", e),
         }
     }
 
-    // Sort by server name
     servers.sort_by(|a, b| a.0.cmp(&b.0));
-    // Deduplicate based on the server URL (the unique identifier)
     servers.dedup_by(|a, b| a.1 == b.1);
     Ok(servers)
 }
 
 /// Reads a single log file and extracts the last metrics server address.
 fn process_log_file(path: &PathBuf, re: &Regex) -> Result<Option<String>> {
-    let content = fs::read_to_string(path)
-        .with_context(|| format!("Failed to read log file: {:?}", path))?;
+    let content =
+        fs::read_to_string(path).with_context(|| format!("Failed to read log file: {:?}", path))?;
     let mut last_match: Option<String> = None;
     for line in content.lines() {
         if let Some(caps) = re.captures(line) {

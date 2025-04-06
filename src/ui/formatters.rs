@@ -66,14 +66,12 @@ pub fn format_speed_bps(speed_bps: Option<f64>) -> String {
 
 // Helper to create a vector of formatted data cell strings for a list item
 pub fn create_list_item_cells(name: &str, metrics: &NodeMetrics) -> Vec<String> {
-    // Calculate total errors
     let put_err = metrics.put_record_errors.unwrap_or(0);
     let conn_in_err = metrics.incoming_connection_errors.unwrap_or(0);
     let conn_out_err = metrics.outgoing_connection_errors.unwrap_or(0);
     let kad_err = metrics.kad_get_closest_peers_errors.unwrap_or(0);
     let total_errors = put_err + conn_in_err + conn_out_err + kad_err;
 
-    // Format values according to HEADER widths and push to vector
     vec![
         format!("{:<18}", name),                                       // Node
         format!("{}", format_uptime(metrics.uptime_seconds)),          // Uptime
@@ -81,7 +79,6 @@ pub fn create_list_item_cells(name: &str, metrics: &NodeMetrics) -> Vec<String> 
         format!("{}%", format_float(metrics.cpu_usage_percentage, 1)), // CPU %
         format!("{}", format_option(metrics.connected_peers)),         // Peers (Live)
         format!("{}", format_option(metrics.peers_in_routing_table)),  // Routing Table Size
-        // Use total bytes (bandwidth_..._bytes) and format_option_u64_bytes instead of current speed
         format!(
             "{}",
             format_option_u64_bytes(metrics.bandwidth_inbound_bytes)
@@ -90,10 +87,10 @@ pub fn create_list_item_cells(name: &str, metrics: &NodeMetrics) -> Vec<String> 
             "{}",
             format_option_u64_bytes(metrics.bandwidth_outbound_bytes)
         ), // Total Out
-        format!("{}", format_option(metrics.records_stored)), // Records - Removed :<7 padding
-        format!("{}", format_option(metrics.reward_wallet_balance)), // Reward - Removed :<8 padding
-        format!("{:<4}", total_errors),                       // Err
-                                                              // Status is handled separately in render_custom_node_rows
+        format!("{}", format_option(metrics.records_stored)),          // Records
+        format!("{}", format_option(metrics.reward_wallet_balance)),   // Reward
+        format!("{:<4}", total_errors),                                // Err
+                                                                       // Status is handled separately in render_custom_node_rows
     ]
 }
 

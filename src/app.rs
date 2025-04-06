@@ -1,12 +1,12 @@
-use crate::metrics::{NodeMetrics, parse_metrics}; // Import necessary items from metrics module
-use ratatui::widgets::{ListState, TableState}; // Import ListState
+use crate::metrics::{NodeMetrics, parse_metrics};
+use ratatui::widgets::{ListState, TableState};
 use std::{
     collections::{HashMap, VecDeque},
     time::Instant,
-}; // Added VecDeque
+};
 
 // Number of data points to keep for sparklines
-pub const SPARKLINE_HISTORY_LENGTH: usize = 60; // Make public
+pub const SPARKLINE_HISTORY_LENGTH: usize = 60;
 
 /// Holds the application state.
 pub struct App {
@@ -18,8 +18,8 @@ pub struct App {
     pub previous_update_time: Instant, // Store the time of the previous update
     pub speed_in_history: HashMap<String, VecDeque<u64>>, // History for Speed In sparkline
     pub speed_out_history: HashMap<String, VecDeque<u64>>, // History for Speed Out sparkline
-    pub table_state: TableState, // To potentially handle scrolling later (KEEPING FOR NOW, will remove later if unused)
-    pub list_state: ListState,   // State for the new List widget
+    pub table_state: TableState,
+    pub list_state: ListState, // State for the new List widget
 }
 
 impl App {
@@ -27,22 +27,21 @@ impl App {
     pub fn new(servers: Vec<(String, String)>) -> App {
         let mut metrics_map = HashMap::new();
         let now = Instant::now();
-        let speed_in_history = HashMap::new(); // Initialize history maps
+        let speed_in_history = HashMap::new();
         let speed_out_history = HashMap::new();
-        // Initialize metrics map with URLs as keys
         for (_name, url) in &servers {
             metrics_map.insert(url.clone(), Err("Fetching...".to_string()));
         }
         App {
-            servers, // Assign the passed-in Vec<(String, String)>
+            servers,
             metrics: metrics_map,
-            previous_metrics: HashMap::new(), // Initialize empty previous metrics
-            last_update: now,                 // Initialize last_update time
-            speed_in_history,                 // Add history maps to struct initialization
+            previous_metrics: HashMap::new(),
+            last_update: now,
+            speed_in_history,
             speed_out_history,
-            previous_update_time: now, // Initialize previous update time
-            table_state: TableState::default(), // Initialize table state (KEEPING FOR NOW)
-            list_state: ListState::default(), // Initialize list state
+            previous_update_time: now,
+            table_state: TableState::default(),
+            list_state: ListState::default(),
         }
     }
 
@@ -58,7 +57,6 @@ impl App {
         let mut next_previous_metrics = HashMap::new();
 
         for (addr, result) in results {
-            // Get or create history deques for this address
             let history_in = self
                 .speed_in_history
                 .entry(addr.clone())
@@ -70,45 +68,38 @@ impl App {
 
             match result {
                 Ok(raw_data) => {
-                    // Parse raw data into NodeMetrics
                     let mut current_metrics = parse_metrics(&raw_data);
 
-                    // Calculate speed if possible
                     if let Some(prev_metrics) = self.previous_metrics.get(&addr) {
                         if delta_time > 0.0 {
-                            // Calculate inbound speed
                             if let (Some(current_in), Some(prev_in)) = (
                                 current_metrics.bandwidth_inbound_bytes,
                                 prev_metrics.bandwidth_inbound_bytes,
                             ) {
                                 if current_in >= prev_in {
-                                    // Handle counter resets or initial states
                                     let delta_bytes = current_in - prev_in;
                                     current_metrics.speed_in_bps =
                                         Some(delta_bytes as f64 / delta_time);
                                 } else {
-                                    current_metrics.speed_in_bps = Some(0.0); // Reset detected or initial state
+                                    current_metrics.speed_in_bps = Some(0.0);
                                 }
                             }
 
-                            // Calculate outbound speed
                             if let (Some(current_out), Some(prev_out)) = (
                                 current_metrics.bandwidth_outbound_bytes,
                                 prev_metrics.bandwidth_outbound_bytes,
                             ) {
                                 if current_out >= prev_out {
-                                    // Handle counter resets
                                     let delta_bytes = current_out - prev_out;
                                     current_metrics.speed_out_bps =
                                         Some(delta_bytes as f64 / delta_time);
                                 } else {
-                                    current_metrics.speed_out_bps = Some(0.0); // Reset detected
+                                    current_metrics.speed_out_bps = Some(0.0);
                                 }
                             }
                         }
                     }
 
-                    // Add current speeds to history (use 0 if None or negative)
                     let speed_in_val = current_metrics.speed_in_bps.unwrap_or(0.0).max(0.0) as u64;
                     let speed_out_val =
                         current_metrics.speed_out_bps.unwrap_or(0.0).max(0.0) as u64;
@@ -116,14 +107,12 @@ impl App {
                     history_in.push_back(speed_in_val);
                     history_out.push_back(speed_out_val);
 
-                    // Trim history if it exceeds the desired length
                     if history_in.len() > SPARKLINE_HISTORY_LENGTH {
                         history_in.pop_front();
                     }
                     if history_out.len() > SPARKLINE_HISTORY_LENGTH {
                         history_out.pop_front();
                     }
-                    // Generate chart data from history
                     current_metrics.chart_data_in = Some(
                         history_in
                             .iter()
@@ -139,34 +128,27 @@ impl App {
                             .collect(),
                     );
 
-                    // Store the potentially updated metrics for the next cycle's "previous" state
                     next_previous_metrics.insert(addr.clone(), current_metrics.clone());
-                    // Store the result for the current display state
                     new_metrics_map.insert(addr.clone(), Ok(current_metrics.clone())); // Clone to avoid move
                 }
                 Err(e) => {
-                    // Fetching failed, store error and add 0 to speed history
-                    new_metrics_map.insert(addr.clone(), Err(e)); // Use addr.clone() here too
+                    new_metrics_map.insert(addr.clone(), Err(e));
                     history_in.push_back(0);
                     history_out.push_back(0);
 
-                    // Trim history
                     if history_in.len() > SPARKLINE_HISTORY_LENGTH {
                         history_in.pop_front();
                     }
                     if history_out.len() > SPARKLINE_HISTORY_LENGTH {
                         history_out.pop_front();
                     }
-                } // Ensure chart data is None or empty when there's an error
-                  // (NodeMetrics defaults to None, so no explicit action needed here unless
-                  // we wanted to store an empty Vec instead).
+                }
             }
         }
 
-        // Update the application state
         self.previous_metrics = next_previous_metrics;
-        self.previous_update_time = self.last_update; // The 'last_update' before this cycle becomes the 'previous' for the next
+        self.previous_update_time = self.last_update;
         self.metrics = new_metrics_map;
-        self.last_update = update_start_time; // Record the time this update cycle started
+        self.last_update = update_start_time;
     }
 }

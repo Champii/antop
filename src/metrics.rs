@@ -33,18 +33,17 @@ pub fn parse_metrics(metrics_data: &str) -> NodeMetrics {
 
     for line in metrics_data.lines() {
         if line.starts_with('#') || line.is_empty() {
-            continue; // Skip comments and empty lines
+            continue;
         }
 
         let parts: Vec<&str> = line.split_whitespace().collect();
         if parts.len() < 2 {
-            continue; // Skip lines without at least a name and value
+            continue;
         }
 
         let metric_name = parts[0];
         let value_str = parts[parts.len() - 1]; // Value is usually the last part
 
-        // Generic helper function to parse value
         fn parse_value<T: FromStr>(s: &str) -> Option<T> {
             s.parse::<T>().ok()
         }
@@ -98,7 +97,7 @@ pub fn parse_metrics(metrics_data: &str) -> NodeMetrics {
                     kad_get_closest_peers_errors_sum += val;
                 }
             }
-            _ => {} // Ignore other metrics
+            _ => {}
         }
     }
 

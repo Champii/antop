@@ -10,14 +10,13 @@ use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Style},
     symbols,
-    text::Line, // Added import for Line
+    text::Line,
     widgets::{Axis, Chart, Dataset, GraphType, Paragraph},
 };
 
 // --- Constants ---
 
 const HEADER_TITLES: [&str; 12] = [
-    // Increased size to 12
     "Node",
     "Uptime",
     "Mem",
@@ -34,14 +33,7 @@ const HEADER_TITLES: [&str; 12] = [
 const HEADER_STYLE: Style = Style::new().fg(Color::Yellow); // Use Style::new() for const
 const DATA_CELL_STYLE: Style = Style::new().fg(Color::Gray); // Use Style::new() for const
 
-// Define column widths based on header comment (line 33 in original ui.rs) + Status
-// These must match the constraints used for data rows
-// Define column widths including charts for even distribution
-// 11 text columns + 2 chart columns = 13 total
-// Define column widths including charts for even distribution + gap
-// 12 text columns + 1 gap column + 2 chart columns = 15 total
 pub const COLUMN_CONSTRAINTS: [Constraint; 15] = [
-    // Increased size to 15
     Constraint::Ratio(1, 21), // 0: Node
     Constraint::Ratio(1, 21), // 1: Uptime
     Constraint::Ratio(1, 21), // 2: Mem MB
@@ -92,14 +84,11 @@ pub fn render_header(f: &mut Frame, area: Rect) {
         }
     }
 
-    // Render Rx title in the second chunk (chart area)
-    // Render Rx title in the 12th column chunk (index 11)
     let rx_title_paragraph = Paragraph::new("Rx")
         .style(HEADER_STYLE)
         .alignment(Alignment::Center);
     f.render_widget(rx_title_paragraph, header_column_chunks[13]); // Shifted due to gap + new column
 
-    // Render Tx title in the 13th column chunk (index 12)
     let tx_title_paragraph = Paragraph::new("Tx")
         .style(HEADER_STYLE)
         .alignment(Alignment::Center);
@@ -175,9 +164,6 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
         .constraints(COLUMN_CONSTRAINTS) // Use the updated constant for all columns
         .split(area);
 
-    // Assign areas based on the new layout
-    // Indices 0-10 are text columns
-    // Indices 0-9, 11-12 are text columns (index 10 is the gap)
     let rx_area = column_chunks[13]; // 14th column is Rx chart (was 12)
     let tx_area = column_chunks[14]; // 15th column is Tx chart (was 13)
 
@@ -201,11 +187,6 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
         ),
     };
 
-    // Render each data cell in its column chunk
-    // Render each data cell in its corresponding column chunk (first 11 columns)
-    // Note: data_cells contains 11 items (including name)
-    // Render each data cell in its corresponding column chunk, accounting for the gap
-    // Note: data_cells contains 12 items (matching HEADER_TITLES)
     for (idx, cell_text) in data_cells.iter().enumerate() {
         // Determine the correct chunk index, skipping the gap column (now index 10)
         // data_cells has 12 items (indices 0-11)
@@ -226,8 +207,6 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
         }
     }
 
-    // Render status in the 11th column chunk (index 10)
-    // Status text is the 11th item in data_cells (index 10), rendered into chunk 11
     // Render status separately in the correct column chunk
     let status_paragraph = Paragraph::new(format!("{}", status_text))
         .style(style)
