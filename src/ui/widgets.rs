@@ -188,7 +188,7 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     let in_row_layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(50), // Text Label (In)
+            Constraint::Percentage(50), // Text Label Area (In)
             Constraint::Percentage(50), // Chart (In)
         ])
         .split(speed_layout[0]);
@@ -196,7 +196,7 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     let out_row_layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(50), // Text Label (Out)
+            Constraint::Percentage(50), // Text Label Area (Out)
             Constraint::Percentage(50), // Chart (Out)
         ])
         .split(speed_layout[1]);
@@ -205,21 +205,44 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     let total_in_speed_str = format_speed_bps(Some(total_in));
     let total_out_speed_str = format_speed_bps(Some(total_out));
 
-    let in_text_label = Line::from(vec![
-        Span::styled("In:  ", Style::default().fg(Color::DarkGray)),
-        Span::styled(total_in_speed_str, Style::default().fg(Color::Cyan)),
-    ])
-    .alignment(Alignment::Left);
-    let out_text_label = Line::from(vec![
-        Span::styled("Out: ", Style::default().fg(Color::DarkGray)),
-        Span::styled(total_out_speed_str, Style::default().fg(Color::Magenta)),
-    ])
-    .alignment(Alignment::Left);
+    // --- Split Alignment for Speed Text ---
+    // Split the "In" speed text area
+    let in_speed_text_area = in_row_layout[0];
+    let in_speed_text_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(4), // Fixed width for "In: " label
+            Constraint::Min(0),    // Remaining space for value
+        ])
+        .split(in_speed_text_area);
 
-    let in_paragraph = Paragraph::new(in_text_label).alignment(Alignment::Left);
-    let out_paragraph = Paragraph::new(out_text_label).alignment(Alignment::Left);
+    let in_speed_label = Paragraph::new("In:").alignment(Alignment::Left);
+    let in_speed_value = Paragraph::new(total_in_speed_str)
+        .style(Style::default().fg(Color::Cyan))
+        .alignment(Alignment::Right);
 
-    // Create Datasets for Charts (converting history data)
+    f.render_widget(in_speed_label, in_speed_text_chunks[0]);
+    f.render_widget(in_speed_value, in_speed_text_chunks[1]);
+
+    // Split the "Out" speed text area
+    let out_speed_text_area = out_row_layout[0];
+    let out_speed_text_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(5), // Fixed width for "Out: " label
+            Constraint::Min(0),    // Remaining space for value
+        ])
+        .split(out_speed_text_area);
+
+    let out_speed_label = Paragraph::new("Out:").alignment(Alignment::Left);
+    let out_speed_value = Paragraph::new(total_out_speed_str)
+        .style(Style::default().fg(Color::Magenta))
+        .alignment(Alignment::Right);
+
+    f.render_widget(out_speed_label, out_speed_text_chunks[0]);
+    f.render_widget(out_speed_value, out_speed_text_chunks[1]);
+
+    // --- Render Speed Charts ---
     let total_in_data: Vec<(f64, f64)> = app
         .total_speed_in_history
         .iter()
@@ -234,16 +257,13 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
         .map(|(i, &val)| (i as f64, val as f64))
         .collect();
 
-    // Create Charts (similar config to row charts)
     let in_chart = create_summary_chart(&total_in_data, Color::Cyan, "Total Rx");
     let out_chart = create_summary_chart(&total_out_data, Color::Magenta, "Total Tx");
 
-    // Render Text and Charts
-    f.render_widget(in_paragraph, in_row_layout[0]);
+    // Render only the charts in their designated areas
     if let Some(chart) = in_chart {
         f.render_widget(chart, in_row_layout[1]);
     }
-    f.render_widget(out_paragraph, out_row_layout[0]);
     if let Some(chart) = out_chart {
         f.render_widget(chart, out_row_layout[1]);
     }
@@ -266,36 +286,28 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     }
 
     // Convert bytes to GB for display
-    // let total_data_in_gb = total_data_in_bytes as f64 / 1_000_000_000.0; // No longer needed
-    // let total_data_out_gb = total_data_out_bytes as f64 / 1_000_000_000.0; // No longer needed
+    // let total_data_in_gb = total_data_in_bytes as f64 / 1_000_000_000.0; // Removed - Using adaptive formatter
+    // let total_data_out_gb = total_data_out_bytes as f64 / 1_000_000_000.0; // Removed - Using adaptive formatter
 
-    // --- Data Column Rendering ---
+    // --- Data Column Rendering (Simple display) ---
     let data_col_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(1), Constraint::Length(1)])
         .split(data_col_area);
 
-    // Use the adaptive formatter
     let formatted_data_in = format_option_u64_bytes(Some(total_data_in_bytes));
     let formatted_data_out = format_option_u64_bytes(Some(total_data_out_bytes));
 
-    let data_in_text = Line::from(vec![Span::styled(
-        formatted_data_in,
-        Style::default().fg(Color::Cyan),
-    )]);
-    let data_out_text = Line::from(vec![Span::styled(
-        formatted_data_out,
-        Style::default().fg(Color::Magenta),
-    )]);
+    // Just render the formatted value, left-aligned (NO LABELS HERE)
+    let data_in_para = Paragraph::new(formatted_data_in)
+        .style(Style::default().fg(Color::Cyan))
+        .alignment(Alignment::Left);
+    let data_out_para = Paragraph::new(formatted_data_out)
+        .style(Style::default().fg(Color::Magenta))
+        .alignment(Alignment::Left);
 
-    f.render_widget(
-        Paragraph::new(data_in_text).alignment(Alignment::Left),
-        data_col_layout[0],
-    );
-    f.render_widget(
-        Paragraph::new(data_out_text).alignment(Alignment::Left),
-        data_col_layout[1],
-    );
+    f.render_widget(data_in_para, data_col_layout[0]);
+    f.render_widget(data_out_para, data_col_layout[1]);
 
     // --- Recs/Rwds Column Rendering ---
     let recs_rwds_col_layout = Layout::default()
