@@ -5,16 +5,14 @@ use super::formatters::{
     format_option_u64_bytes, // Import for formatting storage
     format_speed_bps,
 };
-use crate::app::{App, STORAGE_PER_NODE_BYTES}; // Import App and constant
+use crate::app::App; // Import App and constant
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Style, Stylize}, // Add Stylize
+    style::{Color, Style}, // Remove Stylize
     symbols,
     text::{Line, Span}, // Add Span
-    widgets::{
-        Axis, Block, Borders, Cell, Chart, Dataset, Gauge, GraphType, Paragraph, Row, Table,
-    },
+    widgets::{Axis, Chart, Dataset, Gauge, GraphType, Paragraph},
 };
 
 // --- Constants ---
@@ -120,9 +118,7 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
 
     let (storage_ratio, storage_label) = match app.total_used_storage_bytes {
         Some(used_bytes) if allocated_bytes > 0 => {
-            let ratio = (used_bytes as f64 / allocated_bytes as f64)
-                .min(1.0)
-                .max(0.0);
+            let ratio = (used_bytes as f64 / allocated_bytes as f64).clamp(0.0, 1.0);
             let used_formatted = format_option_u64_bytes(Some(used_bytes));
             let label = Span::styled(
                 format!(
@@ -169,11 +165,9 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     let mut total_in: f64 = 0.0;
     let mut total_out: f64 = 0.0;
 
-    for metrics_result in app.metrics.values() {
-        if let Ok(metrics) = metrics_result {
-            total_in += metrics.speed_in_bps.unwrap_or(0.0);
-            total_out += metrics.speed_out_bps.unwrap_or(0.0);
-        }
+    for metrics in app.metrics.values().flatten() {
+        total_in += metrics.speed_in_bps.unwrap_or(0.0);
+        total_out += metrics.speed_out_bps.unwrap_or(0.0);
     }
 
     // Layout for speed section (Text + Chart for In and Out)
@@ -275,14 +269,12 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     let mut total_data_out_bytes: u64 = 0;
     let mut total_live_peers: u64 = 0;
 
-    for metrics_result in app.metrics.values() {
-        if let Ok(metrics) = metrics_result {
-            total_records += metrics.records_stored.unwrap_or(0);
-            total_rewards += metrics.reward_wallet_balance.unwrap_or(0);
-            total_data_in_bytes += metrics.bandwidth_inbound_bytes.unwrap_or(0);
-            total_data_out_bytes += metrics.bandwidth_outbound_bytes.unwrap_or(0);
-            total_live_peers += metrics.connected_peers.unwrap_or(0);
-        }
+    for metrics in app.metrics.values().flatten() {
+        total_records += metrics.records_stored.unwrap_or(0);
+        total_rewards += metrics.reward_wallet_balance.unwrap_or(0);
+        total_data_in_bytes += metrics.bandwidth_inbound_bytes.unwrap_or(0);
+        total_data_out_bytes += metrics.bandwidth_outbound_bytes.unwrap_or(0);
+        total_live_peers += metrics.connected_peers.unwrap_or(0);
     }
 
     // Convert bytes to GB for display

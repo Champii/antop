@@ -182,15 +182,14 @@ impl App {
         let mut current_total_speed_in: f64 = 0.0; // NEW
         let mut current_total_speed_out: f64 = 0.0; // NEW
         let mut current_total_cpu: f64 = 0.0;
-        for result in self.metrics.values() {
-            if let Ok(metrics) = result {
-                if let Some(cpu) = metrics.cpu_usage_percentage {
-                    current_total_cpu += cpu;
-                }
-                // Sum speeds for total history NEW
-                current_total_speed_in += metrics.speed_in_bps.unwrap_or(0.0);
-                current_total_speed_out += metrics.speed_out_bps.unwrap_or(0.0);
+        for metrics in self.metrics.values().flatten() {
+            // Use flatten()
+            if let Some(cpu) = metrics.cpu_usage_percentage {
+                current_total_cpu += cpu;
             }
+            // Sum speeds for total history NEW
+            current_total_speed_in += metrics.speed_in_bps.unwrap_or(0.0);
+            current_total_speed_out += metrics.speed_out_bps.unwrap_or(0.0);
         }
         self.total_cpu_usage = current_total_cpu;
         self.total_allocated_storage = self.servers.len() as u64 * STORAGE_PER_NODE_BYTES;

@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
 
     let mut terminal = setup_terminal()?;
 
-    let mut app = App::new(initial_servers, cli.storage_base_path.clone());
+    let app = App::new(initial_servers, cli.storage_base_path.clone());
 
     let run_result = run_app(&mut terminal, app, &cli).await;
 
