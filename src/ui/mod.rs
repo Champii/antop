@@ -94,7 +94,8 @@ pub async fn run_app<B: Backend>(
                     }
                     Err(e) => {
                         // Log error, maybe display in UI status bar later
-                        eprintln!("Error re-discovering metrics servers: {}", e);
+                        // eprintln!("Error re-discovering metrics servers: {}", e);
+                        app.status_message = Some(format!("Error re-discovering metrics: {}", e));
                     }
                 }
             },
@@ -110,10 +111,12 @@ pub async fn run_app<B: Backend>(
                     }
                     Ok(Ok(false)) => {}
                     Ok(Err(e)) => {
-                        eprintln!("Input polling error: {}", e);
+                        // eprintln!("Input polling error: {}", e);
+                        app.status_message = Some(format!("Input polling error: {}", e));
                     }
                     Err(e) => {
-                         eprintln!("Input task spawn error: {}", e);
+                         // eprintln!("Input task spawn error: {}", e);
+                         app.status_message = Some(format!("Input task spawn error: {}", e));
                     }
                 }
             }
@@ -133,7 +136,7 @@ fn ui(f: &mut Frame, app: &mut App) {
                 Constraint::Length(2), // Top Title
                 Constraint::Length(2), // Summary Gauges (Height reduced to 2 as Peers is now separate)
                 Constraint::Min(0),    // Node Table
-                Constraint::Length(1), // Bottom Status
+                Constraint::Length(1), // Bottom Status / Error
             ]
             .as_ref(),
         )
@@ -148,14 +151,23 @@ fn ui(f: &mut Frame, app: &mut App) {
     // Render node table in the adjusted chunk
     render_custom_node_rows(f, app, main_chunks[2]);
 
-    let status_text = format!(
-        "Last update: {}s ago | {} servers",
-        app.last_update.elapsed().as_secs(),
-        app.servers.len()
-    );
-    let status = Paragraph::new(status_text).alignment(Alignment::Right);
-    // Render status in the last chunk
-    f.render_widget(status, main_chunks[3]);
+    // Determine status text: Show error/message if present, otherwise default status
+    let status_content = if let Some(msg) = &app.status_message {
+        Paragraph::new(msg.clone()).style(Style::default().fg(Color::Red)) // Style errors in Red
+    } else {
+        let default_status = format!(
+            "Last update: {}s ago | {} servers | Press 'q' to quit",
+            app.last_update.elapsed().as_secs(),
+            app.servers.len()
+        );
+        Paragraph::new(default_status).alignment(Alignment::Right)
+    };
+
+    // Render status/error in the last chunk
+    f.render_widget(status_content, main_chunks[3]);
+
+    // Clear the status message after displaying it once (optional, remove if messages should persist)
+    // app.status_message = None;
 }
 
 /// Renders the main content area containing the node list (header + rows).

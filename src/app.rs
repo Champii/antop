@@ -41,8 +41,9 @@ pub struct App {
     // Config & Discovered Paths
     // pub node_path_glob: String, // Store the glob pattern used for discovery - REMOVED (unused)
     pub node_record_store_paths: HashMap<String, PathBuf>, // Map server name to its RECORD STORE path
-                                                           // pub table_state: TableState, // Removed, unused
-                                                           // pub list_state: ListState, // Removed, unused
+    pub status_message: Option<String>, // NEW: For displaying messages/errors in the footer
+                                        // pub table_state: TableState, // Removed, unused
+                                        // pub list_state: ListState, // Removed, unused
 }
 
 impl App {
@@ -58,62 +59,64 @@ impl App {
 
         // Discover record store paths from the glob pattern
         let mut node_record_store_paths = HashMap::new(); // Renamed
-        eprintln!(
-            "🔍 Discovering record store paths using glob: {}",
-            node_path_glob_str
-        );
+        // eprintln!(
+        //     "🔍 Discovering record store paths using glob: {}",
+        //     node_path_glob_str
+        // );
         match glob(&node_path_glob_str) {
             Ok(paths) => {
                 for entry in paths {
                     match entry {
                         Ok(node_dir) => {
-                            eprintln!("  -> Found path: {:?}", node_dir);
+                            // eprintln!("  -> Found path: {:?}", node_dir);
                             if node_dir.is_dir() {
-                                eprintln!("    ✅ It's a directory.");
+                                // eprintln!("    ✅ It's a directory.");
                                 // Look directly for record_store
                                 let record_store_path = node_dir.join("record_store");
-                                eprintln!(
-                                    "    ❓ Checking for record_store subdir: {:?}",
-                                    record_store_path
-                                );
+                                // eprintln!(
+                                //     "    ❓ Checking for record_store subdir: {:?}",
+                                //     record_store_path
+                                // );
                                 // Check if the record_store subdirectory exists and is a directory
                                 if record_store_path.is_dir() {
-                                    eprintln!(
-                                        "      ✅ Record store subdir found and is a directory."
-                                    );
+                                    // eprintln!(
+                                    //     "      ✅ Record store subdir found and is a directory."
+                                    // );
                                     if let Some(server_name) =
                                         node_dir.file_name().and_then(|n| n.to_str())
                                     {
-                                        eprintln!(
-                                            "        ➕ Adding server: '{}' with path: {:?}",
-                                            server_name, record_store_path
-                                        );
+                                        // eprintln!(
+                                        //     "        ➕ Adding server: '{}' with path: {:?}",
+                                        //     server_name, record_store_path
+                                        // );
                                         // Store the record_store path directly
                                         node_record_store_paths
                                             .insert(server_name.to_string(), record_store_path);
                                     } else {
-                                        eprintln!(
-                                            "        ❌ Warning: Could not extract server name from node path: {:?}",
-                                            node_dir
-                                        );
+                                        // eprintln!(
+                                        //     "        ❌ Warning: Could not extract server name from node path: {:?}",
+                                        //     node_dir
+                                        // );
                                     }
                                 } else {
-                                    eprintln!(
-                                        "      ❌ Record store subdir missing or not a directory."
-                                    );
+                                    // eprintln!(
+                                    //     "      ❌ Record store subdir missing or not a directory."
+                                    // );
                                 }
                             } else {
-                                eprintln!("    ❌ Not a directory, skipping.");
+                                // eprintln!("    ❌ Not a directory, skipping.");
                             }
                         }
-                        Err(e) => eprintln!("  ❌ Error processing glob entry: {}", e),
+                        // Err(e) => eprintln!("  ❌ Error processing glob entry: {}", e),
+                        Err(_e) => { /* Optionally log elsewhere */ }
                     }
                 }
             }
-            Err(e) => eprintln!(
-                "❌ Error reading node path glob pattern: {}. Storage size might be inaccurate.",
-                e
-            ),
+            // Err(e) => eprintln!(
+            //     "❌ Error reading node path glob pattern: {}. Storage size might be inaccurate.",
+            //     e
+            // ),
+            Err(_e) => { /* Optionally log elsewhere */ }
         }
 
         App {
@@ -141,6 +144,7 @@ impl App {
             // Store config & discovered paths
             // node_path_glob: node_path_glob_str, // REMOVED (unused)
             node_record_store_paths, // Renamed
+            status_message: None,    // Initialize status message
                                      // table_state: TableState::default(), // Removed, unused
                                      // list_state: ListState::default(), // Removed, unused
         }
@@ -318,21 +322,22 @@ impl App {
                 match calculate_dir_size(record_store_path) {
                     // Calculate size of record_store_path
                     Ok(size) => current_total_used += size,
-                    Err(e) => {
-                        // Log error for specific path, but continue calculation
-                        eprintln!(
-                            "Warning: Failed to calculate size for {:?}: {}. Total size may be inaccurate.",
-                            record_store_path,
-                            e // Log the path we tried to calculate
-                        );
-                    }
+                    // Err(e) => {
+                    //     // Log error for specific path, but continue calculation
+                    //     eprintln!(
+                    //         "Warning: Failed to calculate size for {:?}: {}. Total size may be inaccurate.",
+                    //         record_store_path,
+                    //         e // Log the path we tried to calculate
+                    //     );
+                    // }
+                    Err(_e) => { /* Optionally log elsewhere */ }
                 }
             } else {
                 // This case should ideally not happen if App::new logic is correct, but log just in case
-                eprintln!(
-                    "Warning: Path from map is not a directory (should not happen): {:?}",
-                    record_store_path
-                );
+                // eprintln!(
+                //     "Warning: Path from map is not a directory (should not happen): {:?}",
+                //     record_store_path
+                // );
             }
         }
 
@@ -356,11 +361,12 @@ fn calculate_dir_size(path: &PathBuf) -> io::Result<u64> {
             let entry_path = entry.path();
             let entry_metadata = match fs::symlink_metadata(&entry_path) {
                 Ok(md) => md,
-                Err(e) => {
-                    // Skip files/dirs we can't get metadata for (e.g., permission denied)
-                    eprintln!("Skipping {:?}: {}", entry_path, e);
-                    continue;
-                }
+                // Err(e) => {
+                //     // Skip files/dirs we can't get metadata for (e.g., permission denied)
+                //     eprintln!("Skipping {:?}: {}", entry_path, e);
+                //     continue;
+                // }
+                Err(_e) => continue, // Skip files/dirs we can't get metadata for
             };
 
             if entry_metadata.is_dir() {
@@ -369,14 +375,15 @@ fn calculate_dir_size(path: &PathBuf) -> io::Result<u64> {
                 // Let's try skipping it:
                 match calculate_dir_size(&entry_path) {
                     Ok(size) => total_size += size,
-                    Err(e) => {
-                        eprintln!(
-                            "Error calculating subdirectory size {:?}: {}. Skipping.",
-                            entry_path, e
-                        );
-                        // Continue to next entry instead of returning the error
-                        // return Err(e);
-                    }
+                    // Err(e) => {
+                    //     eprintln!(
+                    //         "Error calculating subdirectory size {:?}: {}. Skipping.",
+                    //         entry_path, e
+                    //     );
+                    //     // Continue to next entry instead of returning the error
+                    //     // return Err(e);
+                    // }
+                    Err(_e) => { /* Optionally log elsewhere */ }
                 }
             } else if entry_metadata.is_file() {
                 total_size += entry_metadata.len();

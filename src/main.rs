@@ -30,7 +30,7 @@ async fn main() -> Result<()> {
                 Vec::new()
             } else {
                 // Log to stdout before TUI starts
-                println!("Found {} initial metrics servers.", servers.len());
+                // println!("Found {} initial metrics servers.", servers.len()); // Commented out
                 servers
             }
         }
@@ -51,6 +51,7 @@ async fn main() -> Result<()> {
     restore_terminal(&mut terminal)?;
 
     if let Err(err) = run_result {
+        // Keep this final error print as it happens after UI closes
         eprintln!("Application error: {:?}", err);
         return Err(err);
     }

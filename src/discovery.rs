@@ -37,10 +37,10 @@ pub fn find_metrics_servers(node_path_glob: &str) -> Result<Vec<(String, String)
                                 }
                                 Err(e) => {
                                     // Error reading or processing the log file content
-                                    eprintln!(
-                                        "Error processing log file for server {}: {:?}: {}",
-                                        name, log_file_path, e
-                                    );
+                                    // eprintln!(
+                                    //     "Error processing log file for server {}: {:?}: {}",
+                                    //     name, log_file_path, e
+                                    // );
                                 }
                             }
                         } else {
@@ -49,14 +49,15 @@ pub fn find_metrics_servers(node_path_glob: &str) -> Result<Vec<(String, String)
                         }
                     } else {
                         // Path structure didn't allow extracting a name
-                        eprintln!(
-                            "Warning: Could not extract server name from path: {:?}",
-                            node_dir
-                        );
+                        // eprintln!(
+                        //     "Warning: Could not extract server name from path: {:?}",
+                        //     node_dir
+                        // );
                     }
                 }
             }
-            Err(e) => eprintln!("Error processing node path glob entry: {}", e),
+            // Err(e) => eprintln!("Error processing node path glob entry: {}", e),
+            Err(_e) => { /* Optionally log this error elsewhere, e.g., to a file */ }
         }
     }
 
