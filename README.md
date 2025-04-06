@@ -1,11 +1,11 @@
-# autonomi_dash
+# Antop
 
 <!-- Badges placeholder -->
-[![Build Status](https://img.shields.io/github/actions/workflow/status/<YOUR_GITHUB_USERNAME>/autonomi_dash/rust.yml?branch=main)](https://github.com/<YOUR_GITHUB_USERNAME>/autonomi_dash/actions)
-[![Crates.io](https://img.shields.io/crates/v/autonomi_dash.svg)](https://crates.io/crates/autonomi_dash)
-[![License](https://img.shields.io/crates/l/autonomi_dash.svg)](https://opensource.org/licenses/MIT) <!-- Or Apache-2.0 -->
+[![Build Status](https://img.shields.io/github/actions/workflow/status/champii/antop/rust.yml?branch=master)](https://github.com/champii/antop/actions)
+[![Crates.io](https://img.shields.io/crates/v/antop.svg)](https://crates.io/crates/antop)
+[![License](https://img.shields.io/crates/l/antop.svg)](https://opensource.org/licenses/MIT) <!-- Or Apache-2.0 -->
 
-A terminal dashboard for monitoring Autonomi `antnode` instances.
+A terminal dashboard for monitoring Autonomi node instances.
 
 <!-- i want a img here -->
 ![Screenshot](./media/screenshot.png)
@@ -27,19 +27,19 @@ A terminal dashboard for monitoring Autonomi `antnode` instances.
 
 1.  Clone the repository:
     ```bash
-    git clone https://github.com/champii/autonomi_dash.git # Replace with actual URL later
-    cd autonomi_dash
+    git clone https://github.com/champii/antop.git # Replace with actual URL later
+    cd antop
     ```
 2.  Build the release binary:
     ```bash
     cargo build --release
     ```
-3.  The executable will be located at `target/release/autonomi_dash`.
+3.  The executable will be located at `target/release/antop`.
 
 ### From Crates.io (Optional - Placeholder)
 
 ```bash
-cargo install autonomi_dash
+cargo install antop
 ```
 (Note: This will only work once the crate is published.)
 
@@ -47,18 +47,18 @@ cargo install autonomi_dash
 
 1.  Run the application:
     ```bash
-    ./target/release/autonomi_dash
+    ./target/release/antop
     ```
     Or, if installed via `cargo install`:
     ```bash
-    autonomi_dash
+    antop
     ```
 
 2.  **Node Discovery:**
-    *   By default, `autonomi_dash` looks for `antnode` log files in `~/.local/share/autonomi/node/*/logs/antnode.log` to find metrics server addresses.
+    *   By default, `antop` looks for `antnode` log files in `~/.local/share/autonomi/node/*/logs/antnode.log` to find metrics server addresses.
     *   You can override this using the `--logs` option with a glob pattern:
       ```bash
-      autonomi_dash --logs "/path/to/your/antnode/logs/**/*.log"
+      antop --logs "/path/to/your/antnode/logs/**/*.log"
       ```
 
 3.  **Keybindings:**

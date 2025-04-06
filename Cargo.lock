@@ -83,6 +83,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "antop"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "crossterm 0.27.0",
+ "dirs",
+ "futures",
+ "glob",
+ "humansize",
+ "ratatui",
+ "regex",
+ "reqwest",
+ "tokio",
+]
+
+[[package]]
 name = "anyhow"
 version = "1.0.97"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -99,23 +116,6 @@ name = "autocfg"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ace50bade8e6234aa140d9a2f552bbee1db4d353f69b8217bc503490fc1a9f26"
-
-[[package]]
-name = "autonomi_dash"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "clap",
- "crossterm 0.27.0",
- "dirs",
- "futures",
- "glob",
- "humansize",
- "ratatui",
- "regex",
- "reqwest",
- "tokio",
-]
 
 [[package]]
 name = "backtrace"
