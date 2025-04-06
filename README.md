@@ -52,10 +52,10 @@ cargo install antop
     ```
 
 2.  **Node Discovery:**
-    *   By default, `antop` looks for `antnode` log files in `~/.local/share/autonomi/node/*/logs/antnode.log` to find metrics server addresses.
-    *   You can override this using the `--logs` option with a glob pattern:
+    *   By default, `antop` looks for `antnode` config folders in `~/.local/share/autonomi/node/*` to find metrics server addresses and storage amounts.
+    *   You can override the discovery path using the `--path` option with a glob pattern matching the root directories of your nodes:
       ```bash
-      antop --logs "/path/to/your/antnode/logs/**/*.log"
+      antop --path "/path/to/your/nodes/node-*"
       ```
 
 ## License
