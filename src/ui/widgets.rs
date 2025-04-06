@@ -547,6 +547,13 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
         // Take only the first 11 cells (0-10)
         let chunk_index = idx;
 
+        // Determine the style based on the column index
+        let cell_style = match idx {
+            6 => Style::default().fg(Color::Cyan),    // Total In
+            7 => Style::default().fg(Color::Magenta), // Total Out
+            _ => DATA_CELL_STYLE,                     // Default style for other columns
+        };
+
         // Render into chunks 0-10
         let alignment = if idx == 0 {
             Alignment::Left
@@ -554,7 +561,7 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
             Alignment::Right
         }; // Align Node left
         let cell_paragraph = Paragraph::new(cell_text.clone())
-            .style(DATA_CELL_STYLE)
+            .style(cell_style) // Use the determined style
             .alignment(alignment);
         f.render_widget(cell_paragraph, column_chunks[chunk_index]);
     }
