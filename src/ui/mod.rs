@@ -130,7 +130,7 @@ fn ui(f: &mut Frame, app: &mut App) {
         .margin(1)
         .constraints(
             [
-                Constraint::Length(1), // Top Title
+                Constraint::Length(2), // Top Title
                 Constraint::Length(2), // Summary Gauges (Reduced from 3)
                 Constraint::Min(0),    // Node Table
                 Constraint::Length(1), // Bottom Status

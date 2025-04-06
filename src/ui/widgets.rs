@@ -84,15 +84,18 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
 
     // --- CPU Gauge ---
     let cpu_percentage = app.total_cpu_usage;
-    let max_cpu_possible = (app.servers.len() as f64 * 100.0).max(1.0);
-    let cpu_ratio = (cpu_percentage / max_cpu_possible).min(1.0).max(0.0);
+    // let max_cpu_possible = (app.servers.len() as f64 * 100.0).max(1.0);
+    // let cpu_ratio = (cpu_percentage / max_cpu_possible).min(1.0).max(0.0);
 
     // Simplified label for smaller space
-    let cpu_label = format!("CPU {:.0}%", cpu_percentage);
+    let cpu_label = Span::styled(
+        format!("CPU {:.2}%", cpu_percentage),
+        Style::default().fg(Color::Blue),
+    );
     let cpu_gauge = Gauge::default()
         // .block(Block::default().title(Span::styled("CPU", Style::new().bold())))
-        .gauge_style(Style::default().fg(Color::Blue).bg(Color::Black))
-        .ratio(cpu_ratio) // Use ratio directly for better precision control
+        .gauge_style(Color::Black)
+        .ratio(cpu_percentage / 100.0) // Use ratio directly for better precision control
         // .percent((cpu_ratio * 100.0) as u16) // Alternative using percent
         .label(cpu_label);
     f.render_widget(cpu_gauge, gauge_chunks[0]);
@@ -107,16 +110,33 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
                 .min(1.0)
                 .max(0.0);
             let used_formatted = format_option_u64_bytes(Some(used_bytes));
-            let label = format!("{} / {}", used_formatted, allocated_formatted);
+            let label = Span::styled(
+                format!(
+                    "{} / {} ({:.2}%)",
+                    used_formatted,
+                    allocated_formatted,
+                    ratio * 100.0
+                ),
+                Style::default().fg(Color::Green),
+            );
             (ratio, label)
         }
         Some(_) => {
             // Used bytes known, but allocation is 0 (no nodes?)
-            (0.0, format!("0 / {}", allocated_formatted))
+            (
+                0.0,
+                Span::styled(
+                    format!("0 / {}", allocated_formatted),
+                    Style::default().fg(Color::Green),
+                ),
+            )
         }
         None => {
             // Error calculating used bytes
-            (0.0, "Error".to_string())
+            (
+                0.0,
+                Span::styled("Error".to_string(), Style::default().fg(Color::Red)),
+            )
         }
     };
 
@@ -124,7 +144,7 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     // let storage_label = allocated_formatted;
     let storage_gauge = Gauge::default()
         // .block(Block::default().title(Span::styled("Store", Style::new().bold()))) // Shortened title
-        .gauge_style(Style::default().fg(Color::Green).bg(Color::Black))
+        .gauge_style(Color::Black)
         .ratio(storage_ratio) // Use the calculated ratio
         // .percent(100) // REMOVED
         .label(storage_label); // Show Used / Allocated

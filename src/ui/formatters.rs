@@ -66,7 +66,7 @@ pub fn create_list_item_cells(name: &str, metrics: &NodeMetrics) -> Vec<String> 
         format!("{:<18}", name),                                       // Node
         format!("{}", format_uptime(metrics.uptime_seconds)),          // Uptime
         format!("{}MB", format_float(metrics.memory_used_mb, 1)),      // Mem MB
-        format!("{}%", format_float(metrics.cpu_usage_percentage, 1)), // CPU %
+        format!("{}%", format_float(metrics.cpu_usage_percentage, 2)), // CPU %
         format!("{}", format_option(metrics.connected_peers)),         // Peers (Live)
         format!("{}", format_option(metrics.peers_in_routing_table)),  // Routing Table Size
         format!(
