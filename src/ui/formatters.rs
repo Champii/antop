@@ -89,7 +89,7 @@ pub fn create_list_item_cells(name: &str, metrics: &NodeMetrics) -> Vec<String> 
         ), // Total Out
         format!("{}", format_option(metrics.records_stored)),          // Records
         format!("{}", format_option(metrics.reward_wallet_balance)),   // Reward
-        format!("{:<4}", total_errors),                                // Err
+        format!("{}", total_errors),                                   // Err
                                                                        // Status is handled separately in render_custom_node_rows
     ]
 }
@@ -107,6 +107,6 @@ pub fn create_placeholder_cells(name: &str) -> Vec<String> {
         format!("{:<10}", "-"),  // BW Out
         format!("{:<7}", "-"),   // Records
         format!("{:<8}", "-"),   // Reward
-        format!("{:<4}", "-"),   // Err
+        format!("{}", "-"),      // Err
     ]
 }
