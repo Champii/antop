@@ -17,41 +17,32 @@ use ratatui::{
 
 // --- Constants ---
 
-const HEADER_TITLES: [&str; 11] = [
-    // Reduced size from 12 to 11
-    "Node",
-    "Uptime",
-    "Mem",
-    "CPU",
-    "Peers",   // Live Peers
+const HEADER_TITLES: [&str; 9] = [
+    // Reduced size from 11 to 9
+    "Node", "Uptime", "Mem", "CPU", "Peers",   // Live Peers
     "Routing", // Routing Table Size
-    "Total In",
-    "Total Out",
-    "Recs",
-    "Rwds",
-    "Err",
+    "Recs", "Rwds", "Err",
     // "Status" moved
 ];
 const HEADER_STYLE: Style = Style::new().fg(Color::Yellow); // Use Style::new() for const
 const DATA_CELL_STYLE: Style = Style::new().fg(Color::Gray); // Use Style::new() for const
 
-pub const COLUMN_CONSTRAINTS: [Constraint; 14] = [
-    Constraint::Ratio(1, 20), // 0: Node
-    Constraint::Ratio(1, 20), // 1: Uptime
-    Constraint::Ratio(1, 20), // 2: Mem MB
-    Constraint::Ratio(1, 20), // 3: CPU %
-    Constraint::Ratio(1, 20), // 4: Peers (Live)
-    Constraint::Ratio(1, 20), // 5: Routing
-    Constraint::Ratio(1, 20), // 6: Total In
-    Constraint::Ratio(1, 20), // 7: Total Out
-    Constraint::Ratio(1, 20), // 8: Records
-    Constraint::Ratio(1, 20), // 9: Reward
-    Constraint::Ratio(1, 20), // 10: Err
-    // Status constraint moved
-    Constraint::Ratio(4, 20), // 11: Rx Chart Area (was 12)
-    Constraint::Ratio(4, 20), // 12: Tx Chart Area (was 13)
-    Constraint::Ratio(1, 20), // 13: Status (was 11)
-]; // Ratios adjusted to sum to 1 (11*1 + 2*4 + 1*1 = 20)
+pub const COLUMN_CONSTRAINTS: [Constraint; 12] = [
+    // Indices shifted after removing Total In/Out
+    Constraint::Ratio(1, 18), // 0: Node
+    Constraint::Ratio(1, 18), // 1: Uptime
+    Constraint::Ratio(1, 18), // 2: Mem MB
+    Constraint::Ratio(1, 18), // 3: CPU %
+    Constraint::Ratio(1, 18), // 4: Peers (Live)
+    Constraint::Ratio(1, 18), // 5: Routing
+    // Total In/Out constraints removed
+    Constraint::Ratio(1, 18), // 6: Records (was 8)
+    Constraint::Ratio(1, 18), // 7: Reward (was 9)
+    Constraint::Ratio(1, 18), // 8: Err (was 10)
+    Constraint::Ratio(4, 18), // 9: Rx Chart Area (was 11)
+    Constraint::Ratio(4, 18), // 10: Tx Chart Area (was 12)
+    Constraint::Ratio(1, 18), // 11: Status (was 13)
+]; // Ratios adjusted to sum to 1 (9*1 + 2*4 + 1*1 = 18)
 
 // --- NEW: Summary Gauges ---
 
@@ -62,28 +53,25 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     // f.render_widget(summary_block, area);
     // let inner_area = summary_block.inner(area); // Use area directly if no block
 
-    // Outer layout: Gauges | Spacer | Speed | Spacer | Data | Spacer | Recs/Rwds | Spacer | Peers | Spacer
+    // Outer layout: Gauges | Spacer | Bandwidth | Spacer | Recs/Rwds | Spacer | Peers | Spacer
     let outer_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
             Constraint::Percentage(20), // 1: Gauges area
             Constraint::Length(2),      // 2: Spacer
-            Constraint::Percentage(15), // 3: Speed area
+            Constraint::Percentage(27), // 3: Bandwidth area (Combined Data + Speed: 12 + 15)
             Constraint::Length(2),      // 4: Spacer
-            Constraint::Percentage(12), // 5: Data (In/Out GB) Column
+            Constraint::Percentage(12), // 5: Recs/Rwds Column
             Constraint::Length(2),      // 6: Spacer
-            Constraint::Percentage(12), // 7: Recs/Rwds Column
-            Constraint::Length(2),      // 8: Spacer
-            Constraint::Percentage(10), // 9: Peers Column
-            Constraint::Min(0),         // 10: Remaining empty space
+            Constraint::Percentage(10), // 7: Peers Column
+            Constraint::Min(0),         // 8: Remaining empty space
         ])
         .split(area);
 
     let gauges_area = outer_chunks[0];
-    let speed_area = outer_chunks[2];
-    let data_col_area = outer_chunks[4]; // NEW: Area for Data column
-    let recs_rwds_col_area = outer_chunks[6]; // NEW: Area for Recs/Rwds column
-    let peers_col_area = outer_chunks[8]; // NEW: Area for Peers column
+    let bandwidth_area = outer_chunks[2]; // NEW: Combined area for bandwidth info (Index 2)
+    let recs_rwds_col_area = outer_chunks[4]; // Index updated
+    let peers_col_area = outer_chunks[6]; // Index updated
 
     // Inner layout: Stack gauges vertically within the gauges_area
     let gauge_chunks = Layout::default()
@@ -160,148 +148,116 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
         .label(storage_label); // Show Used / Allocated
     f.render_widget(storage_gauge, gauge_chunks[1]);
 
-    // --- Speed Area --- NEW
-    // Calculate totals first
-    let mut total_in: f64 = 0.0;
-    let mut total_out: f64 = 0.0;
+    // --- Bandwidth Area --- NEW STRUCTURE
+    // Read pre-calculated totals directly from app state
+    let formatted_data_in = format_option_u64_bytes(Some(app.summary_total_data_in_bytes));
+    let formatted_data_out = format_option_u64_bytes(Some(app.summary_total_data_out_bytes));
+    let total_in_speed_str = format_speed_bps(Some(app.summary_total_in_speed));
+    let total_out_speed_str = format_speed_bps(Some(app.summary_total_out_speed));
 
-    for metrics in app.metrics.values().flatten() {
-        total_in += metrics.speed_in_bps.unwrap_or(0.0);
-        total_out += metrics.speed_out_bps.unwrap_or(0.0);
-    }
-
-    // Layout for speed section (Text + Chart for In and Out)
-    let speed_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1), // Row for In speed + chart
-            Constraint::Length(1), // Row for Out speed + chart
-        ])
-        .split(speed_area);
-
-    let in_row_layout = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(50), // Text Label Area (In)
-            Constraint::Percentage(50), // Chart (In)
-        ])
-        .split(speed_layout[0]);
-
-    let out_row_layout = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Percentage(50), // Text Label Area (Out)
-            Constraint::Percentage(50), // Chart (Out)
-        ])
-        .split(speed_layout[1]);
-
-    // Use calculated totals for text
-    let total_in_speed_str = format_speed_bps(Some(total_in));
-    let total_out_speed_str = format_speed_bps(Some(total_out));
-
-    // --- Split Alignment for Speed Text ---
-    // Split the "In" speed text area
-    let in_speed_text_area = in_row_layout[0];
-    let in_speed_text_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Length(4), // Fixed width for "In: " label
-            Constraint::Min(0),    // Remaining space for value
-        ])
-        .split(in_speed_text_area);
-
-    let in_speed_label = Paragraph::new("In:").alignment(Alignment::Left);
-    let in_speed_value = Paragraph::new(total_in_speed_str)
-        .style(Style::default().fg(Color::Cyan))
-        .alignment(Alignment::Right);
-
-    f.render_widget(in_speed_label, in_speed_text_chunks[0]);
-    f.render_widget(in_speed_value, in_speed_text_chunks[1]);
-
-    // Split the "Out" speed text area
-    let out_speed_text_area = out_row_layout[0];
-    let out_speed_text_chunks = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Length(5), // Fixed width for "Out: " label
-            Constraint::Min(0),    // Remaining space for value
-        ])
-        .split(out_speed_text_area);
-
-    let out_speed_label = Paragraph::new("Out:").alignment(Alignment::Left);
-    let out_speed_value = Paragraph::new(total_out_speed_str)
-        .style(Style::default().fg(Color::Magenta))
-        .alignment(Alignment::Right);
-
-    f.render_widget(out_speed_label, out_speed_text_chunks[0]);
-    f.render_widget(out_speed_value, out_speed_text_chunks[1]);
-
-    // --- Render Speed Charts ---
-    let total_in_data: Vec<(f64, f64)> = app
+    // Get chart data
+    let total_in_chart_data: Vec<(f64, f64)> = app
         .total_speed_in_history
         .iter()
         .enumerate()
         .map(|(i, &val)| (i as f64, val as f64))
         .collect();
 
-    let total_out_data: Vec<(f64, f64)> = app
+    let total_out_chart_data: Vec<(f64, f64)> = app
         .total_speed_out_history
         .iter()
         .enumerate()
         .map(|(i, &val)| (i as f64, val as f64))
         .collect();
 
-    let in_chart = create_summary_chart(&total_in_data, Color::Cyan, "Total Rx");
-    let out_chart = create_summary_chart(&total_out_data, Color::Magenta, "Total Tx");
+    // Create charts
+    let in_chart = create_summary_chart(&total_in_chart_data, Color::Cyan, "Total Rx");
+    let out_chart = create_summary_chart(&total_out_chart_data, Color::Magenta, "Total Tx");
 
-    // Render only the charts in their designated areas
-    if let Some(chart) = in_chart {
-        f.render_widget(chart, in_row_layout[1]);
-    }
-    if let Some(chart) = out_chart {
-        f.render_widget(chart, out_row_layout[1]);
-    }
-
-    // --- Totals Calculation (unchanged) ---
-    let mut total_records: u64 = 0;
-    let mut total_rewards: u64 = 0;
-    let mut total_data_in_bytes: u64 = 0;
-    let mut total_data_out_bytes: u64 = 0;
-    let mut total_live_peers: u64 = 0;
-
-    for metrics in app.metrics.values().flatten() {
-        total_records += metrics.records_stored.unwrap_or(0);
-        total_rewards += metrics.reward_wallet_balance.unwrap_or(0);
-        total_data_in_bytes += metrics.bandwidth_inbound_bytes.unwrap_or(0);
-        total_data_out_bytes += metrics.bandwidth_outbound_bytes.unwrap_or(0);
-        total_live_peers += metrics.connected_peers.unwrap_or(0);
-    }
-
-    // Convert bytes to GB for display
-    // let total_data_in_gb = total_data_in_bytes as f64 / 1_000_000_000.0; // Removed - Using adaptive formatter
-    // let total_data_out_gb = total_data_out_bytes as f64 / 1_000_000_000.0; // Removed - Using adaptive formatter
-
-    // --- Data Column Rendering (Simple display) ---
-    let data_col_layout = Layout::default()
+    // Layout for bandwidth section (Vertical: In row, Out row)
+    let bandwidth_layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Length(1)])
-        .split(data_col_area);
+        .constraints([
+            Constraint::Length(1), // Row for In
+            Constraint::Length(1), // Row for Out
+        ])
+        .split(bandwidth_area); // Use the combined bandwidth_area
 
-    let formatted_data_in = format_option_u64_bytes(Some(total_data_in_bytes));
-    let formatted_data_out = format_option_u64_bytes(Some(total_data_out_bytes));
+    // --- In Row ---
+    let in_row_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(5),  // Label "In: "
+            Constraint::Length(10), // Total Data (Right aligned)
+            Constraint::Min(10),    // Chart (Takes remaining space)
+            Constraint::Length(12), // Speed (Right aligned)
+        ])
+        .split(bandwidth_layout[0]);
 
-    // Just render the formatted value, left-aligned (NO LABELS HERE)
-    let data_in_para = Paragraph::new(formatted_data_in)
+    // Render "In:" label
+    let in_label = Paragraph::new("In:").alignment(Alignment::Left);
+    f.render_widget(in_label, in_row_layout[0]);
+
+    // Render Total In Data
+    let in_data_para = Paragraph::new(formatted_data_in)
         .style(Style::default().fg(Color::Cyan))
-        .alignment(Alignment::Left);
-    let data_out_para = Paragraph::new(formatted_data_out)
+        .alignment(Alignment::Right);
+    f.render_widget(in_data_para, in_row_layout[1]);
+
+    // Render In Chart
+    if let Some(chart) = in_chart {
+        f.render_widget(chart, in_row_layout[2]);
+    } else {
+        let placeholder = Paragraph::new("-")
+            .style(DATA_CELL_STYLE)
+            .alignment(Alignment::Center);
+        f.render_widget(placeholder, in_row_layout[2]);
+    }
+
+    // Render In Speed
+    let in_speed_para = Paragraph::new(total_in_speed_str)
+        .style(Style::default().fg(Color::Cyan))
+        .alignment(Alignment::Right);
+    f.render_widget(in_speed_para, in_row_layout[3]);
+
+    // --- Out Row ---
+    let out_row_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(5),  // Label "Out: "
+            Constraint::Length(10), // Total Data (Right aligned)
+            Constraint::Min(10),    // Chart (Takes remaining space)
+            Constraint::Length(12), // Speed (Right aligned)
+        ])
+        .split(bandwidth_layout[1]);
+
+    // Render "Out:" label
+    let out_label = Paragraph::new("Out:").alignment(Alignment::Left);
+    f.render_widget(out_label, out_row_layout[0]);
+
+    // Render Total Out Data
+    let out_data_para = Paragraph::new(formatted_data_out)
         .style(Style::default().fg(Color::Magenta))
-        .alignment(Alignment::Left);
+        .alignment(Alignment::Right);
+    f.render_widget(out_data_para, out_row_layout[1]);
 
-    f.render_widget(data_in_para, data_col_layout[0]);
-    f.render_widget(data_out_para, data_col_layout[1]);
+    // Render Out Chart
+    if let Some(chart) = out_chart {
+        f.render_widget(chart, out_row_layout[2]);
+    } else {
+        let placeholder = Paragraph::new("-")
+            .style(DATA_CELL_STYLE)
+            .alignment(Alignment::Center);
+        f.render_widget(placeholder, out_row_layout[2]);
+    }
 
-    // --- Recs/Rwds Column Rendering ---
+    // Render Out Speed
+    let out_speed_para = Paragraph::new(total_out_speed_str)
+        .style(Style::default().fg(Color::Magenta))
+        .alignment(Alignment::Right);
+    f.render_widget(out_speed_para, out_row_layout[3]);
+
+    // --- Recs/Rwds Column Rendering (Use totals calculated earlier) ---
     let recs_rwds_col_layout = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Length(1), Constraint::Length(1)])
@@ -310,14 +266,14 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     let recs_text = Line::from(vec![
         Span::styled("Recs:", Style::default().fg(Color::DarkGray)),
         Span::styled(
-            format!("{}", total_records),
+            format!("{}", app.summary_total_records), // Use pre-calculated value
             Style::default().fg(Color::White),
         ),
     ]);
     let rwds_text = Line::from(vec![
         Span::styled("Rwds:", Style::default().fg(Color::DarkGray)),
         Span::styled(
-            format!("{}", total_rewards),
+            format!("{}", app.summary_total_rewards), // Use pre-calculated value
             Style::default().fg(Color::Yellow),
         ),
     ]);
@@ -335,7 +291,7 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     let peers_text = Line::from(vec![
         Span::styled("Peers:", Style::default().fg(Color::DarkGray)),
         Span::styled(
-            format!("{}", total_live_peers),
+            format!("{}", app.summary_total_live_peers), // Use pre-calculated value
             Style::default().fg(Color::Blue),
         ),
     ]);
@@ -422,17 +378,17 @@ pub fn render_header(f: &mut Frame, area: Rect) {
     let rx_title_paragraph = Paragraph::new("Rx")
         .style(HEADER_STYLE)
         .alignment(Alignment::Center);
-    f.render_widget(rx_title_paragraph, header_column_chunks[11]); // Rx is now index 11
+    f.render_widget(rx_title_paragraph, header_column_chunks[9]); // Rx is now index 9
 
     let tx_title_paragraph = Paragraph::new("Tx")
         .style(HEADER_STYLE)
         .alignment(Alignment::Center);
-    f.render_widget(tx_title_paragraph, header_column_chunks[12]); // Tx is now index 12
+    f.render_widget(tx_title_paragraph, header_column_chunks[10]); // Tx is now index 10
 
     let status_title_paragraph = Paragraph::new("Status")
         .style(HEADER_STYLE)
         .alignment(Alignment::Right); // Align right like other data columns
-    f.render_widget(status_title_paragraph, header_column_chunks[13]); // Status is now index 13
+    f.render_widget(status_title_paragraph, header_column_chunks[11]); // Status is now index 11
 }
 
 /// Renders a single bandwidth chart (Rx or Tx) and its associated speed.
@@ -516,9 +472,9 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
         .split(area);
 
     // Indices adjusted after moving Status
-    let rx_area = column_chunks[11]; // Rx chart is now index 11
-    let tx_area = column_chunks[12]; // Tx chart is now index 12
-    let status_area = column_chunks[13]; // Status is now index 13
+    let rx_area = column_chunks[9]; // Rx chart is now index 9
+    let tx_area = column_chunks[10]; // Tx chart is now index 10
+    let status_area = column_chunks[11]; // Status is now index 11
 
     // Get metrics and determine style + status
     let metrics_result = app.metrics.get(url);
@@ -540,21 +496,22 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
         ),
     };
 
-    // Render data cells (Node to Err) into chunks 0-10
-    // Assuming data_cells still contains the status conceptually at index 11,
-    // but we render it separately later.
-    for (idx, cell_text) in data_cells.iter().take(11).enumerate() {
-        // Take only the first 11 cells (0-10)
+    // Render data cells (Node to Err) into chunks 0-8 (Indices 0-8 correspond to HEADER_TITLES)
+    for (idx, cell_text) in data_cells.iter().take(9).enumerate() {
+        // Take only the first 9 cells (0-8)
         let chunk_index = idx;
 
-        // Render into chunks 0-10
+        // Determine the style based on the column index -- REMOVED, use default
+        // let cell_style = match idx { ... };
+
+        // Render into chunks 0-8
         let alignment = if idx == 0 {
             Alignment::Left
         } else {
             Alignment::Right
         }; // Align Node left
         let cell_paragraph = Paragraph::new(cell_text.clone())
-            .style(DATA_CELL_STYLE)
+            .style(DATA_CELL_STYLE) // Use default style
             .alignment(alignment);
         f.render_widget(cell_paragraph, column_chunks[chunk_index]);
     }
@@ -563,23 +520,117 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
     let status_paragraph = Paragraph::new(status_text) // format! is redundant for String
         .style(style) // Use the determined style (Green/Yellow/Gray)
         .alignment(Alignment::Right);
-    f.render_widget(status_paragraph, status_area); // Render in the dedicated status_area (index 13)
+    f.render_widget(status_paragraph, status_area); // Render in the dedicated status_area (index 11)
 
-    // --- Render Separate Rx/Tx Charts ---
-    let (chart_data_in, chart_data_out, speed_in, speed_out) = metrics_result
+    // --- Render Rx/Tx Columns (TotalData Chart Speed Layout) ---
+
+    // Extract all necessary data points for this node
+    let (
+        chart_data_in,
+        chart_data_out,
+        speed_in_bps,
+        speed_out_bps,
+        total_in_bytes,
+        total_out_bytes,
+    ) = metrics_result
         .and_then(|res| res.as_ref().ok()) // Get Option<&NodeMetrics>
-        .map_or((None, None, None, None), |m| {
-            (
-                m.chart_data_in.as_deref(),
-                m.chart_data_out.as_deref(),
-                m.speed_in_bps,
-                m.speed_out_bps,
-            )
-        });
+        .map_or(
+            (None, None, None, None, None, None), // Default if no metrics
+            |m| {
+                (
+                    m.chart_data_in.as_deref(),
+                    m.chart_data_out.as_deref(),
+                    m.speed_in_bps,
+                    m.speed_out_bps,
+                    m.bandwidth_inbound_bytes,  // Extract total bytes
+                    m.bandwidth_outbound_bytes, // Extract total bytes
+                )
+            },
+        );
 
-    // Render Rx Chart and Speed
-    render_bandwidth_chart_and_speed(f, rx_area, chart_data_in, speed_in, Color::Cyan, "Rx");
+    // Format the extracted data
+    let formatted_total_in = format_option_u64_bytes(total_in_bytes);
+    let formatted_total_out = format_option_u64_bytes(total_out_bytes);
+    let formatted_speed_in = format_speed_bps(speed_in_bps);
+    let formatted_speed_out = format_speed_bps(speed_out_bps);
 
-    // Render Tx Chart and Speed
-    render_bandwidth_chart_and_speed(f, tx_area, chart_data_out, speed_out, Color::Magenta, "Tx");
+    // --- Rx Column Rendering ---
+    let rx_col_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(8),  // Total Data (Right aligned)
+            Constraint::Min(1), // Chart (Takes remaining space) - Ensure at least 1 for placeholder
+            Constraint::Length(10), // Speed (Right aligned)
+        ])
+        .split(rx_area); // Split the rx_area (column_chunks[9])
+
+    // Render Total In Data
+    let total_in_para = Paragraph::new(formatted_total_in)
+        .style(Style::default().fg(Color::Cyan))
+        .alignment(Alignment::Right);
+    f.render_widget(total_in_para, rx_col_layout[0]);
+
+    // Render In Chart (reuse create_summary_chart helper)
+    if let Some(data) = chart_data_in {
+        if let Some(chart) = create_summary_chart(data, Color::Cyan, "Rx") {
+            f.render_widget(chart, rx_col_layout[1]);
+        } else {
+            // Handle case where create_summary_chart returns None (e.g., < 2 data points)
+            let placeholder = Paragraph::new("-")
+                .style(DATA_CELL_STYLE)
+                .alignment(Alignment::Center);
+            f.render_widget(placeholder, rx_col_layout[1]);
+        }
+    } else {
+        // Handle case where chart_data_in itself is None
+        let placeholder = Paragraph::new("-")
+            .style(DATA_CELL_STYLE)
+            .alignment(Alignment::Center);
+        f.render_widget(placeholder, rx_col_layout[1]);
+    }
+
+    // Render In Speed
+    let speed_in_para = Paragraph::new(formatted_speed_in)
+        .style(Style::default().fg(Color::Cyan))
+        .alignment(Alignment::Right);
+    f.render_widget(speed_in_para, rx_col_layout[2]);
+
+    // --- Tx Column Rendering ---
+    let tx_col_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Length(8),  // Total Data (Right aligned)
+            Constraint::Min(1),     // Chart (Takes remaining space)
+            Constraint::Length(10), // Speed (Right aligned)
+        ])
+        .split(tx_area); // Split the tx_area (column_chunks[10])
+
+    // Render Total Out Data
+    let total_out_para = Paragraph::new(formatted_total_out)
+        .style(Style::default().fg(Color::Magenta))
+        .alignment(Alignment::Right);
+    f.render_widget(total_out_para, tx_col_layout[0]);
+
+    // Render Out Chart (reuse create_summary_chart helper)
+    if let Some(data) = chart_data_out {
+        if let Some(chart) = create_summary_chart(data, Color::Magenta, "Tx") {
+            f.render_widget(chart, tx_col_layout[1]);
+        } else {
+            let placeholder = Paragraph::new("-")
+                .style(DATA_CELL_STYLE)
+                .alignment(Alignment::Center);
+            f.render_widget(placeholder, tx_col_layout[1]);
+        }
+    } else {
+        let placeholder = Paragraph::new("-")
+            .style(DATA_CELL_STYLE)
+            .alignment(Alignment::Center);
+        f.render_widget(placeholder, tx_col_layout[1]);
+    }
+
+    // Render Out Speed
+    let speed_out_para = Paragraph::new(formatted_speed_out)
+        .style(Style::default().fg(Color::Magenta))
+        .alignment(Alignment::Right);
+    f.render_widget(speed_out_para, tx_col_layout[2]);
 }
