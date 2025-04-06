@@ -16,7 +16,8 @@ use ratatui::{
 
 // --- Constants ---
 
-const HEADER_TITLES: [&str; 12] = [
+const HEADER_TITLES: [&str; 11] = [
+    // Reduced size from 12 to 11
     "Node",
     "Uptime",
     "Mem",
@@ -28,7 +29,7 @@ const HEADER_TITLES: [&str; 12] = [
     "Recs",
     "Rwds",
     "Err",
-    "Status",
+    // "Status" moved
 ];
 const HEADER_STYLE: Style = Style::new().fg(Color::Yellow); // Use Style::new() for const
 const DATA_CELL_STYLE: Style = Style::new().fg(Color::Gray); // Use Style::new() for const
@@ -45,10 +46,11 @@ pub const COLUMN_CONSTRAINTS: [Constraint; 14] = [
     Constraint::Ratio(1, 20), // 8: Records
     Constraint::Ratio(1, 20), // 9: Reward
     Constraint::Ratio(1, 20), // 10: Err
-    Constraint::Ratio(1, 20), // 11: Status
-    Constraint::Ratio(4, 20), // 12: Rx Chart Area
-    Constraint::Ratio(4, 20), // 13: Tx Chart Area
-]; // Ratios adjusted to sum to 1 (12*1 + 2*4 = 20)
+    // Status constraint moved
+    Constraint::Ratio(4, 20), // 11: Rx Chart Area (was 12)
+    Constraint::Ratio(4, 20), // 12: Tx Chart Area (was 13)
+    Constraint::Ratio(1, 20), // 13: Status (was 11)
+]; // Ratios adjusted to sum to 1 (11*1 + 2*4 + 1*1 = 20)
 
 // --- Rendering Helpers ---
 
@@ -60,12 +62,12 @@ pub fn render_header(f: &mut Frame, area: Rect) {
         .constraints(COLUMN_CONSTRAINTS) // Use the updated constant for all columns
         .split(area);
 
-    // Render each header title in its respective column chunk
+    // Render each header title (Node to Err) in its respective column chunk (0-10)
     for (i, title) in HEADER_TITLES.iter().enumerate() {
-        // The index `i` directly corresponds to the chunk index now
-        let chunk_index = i;
+        let chunk_index = i; // Indices 0 to 10
 
         if chunk_index < header_column_chunks.len() {
+            // Should always be true here
             let alignment = if i == 0 {
                 Alignment::Left
             } else {
@@ -78,15 +80,21 @@ pub fn render_header(f: &mut Frame, area: Rect) {
         }
     }
 
+    // Render Rx, Tx, and Status titles in their new positions
     let rx_title_paragraph = Paragraph::new("Rx")
         .style(HEADER_STYLE)
         .alignment(Alignment::Center);
-    f.render_widget(rx_title_paragraph, header_column_chunks[12]); // Rx is now index 12
+    f.render_widget(rx_title_paragraph, header_column_chunks[11]); // Rx is now index 11
 
     let tx_title_paragraph = Paragraph::new("Tx")
         .style(HEADER_STYLE)
         .alignment(Alignment::Center);
-    f.render_widget(tx_title_paragraph, header_column_chunks[13]); // Tx is now index 13
+    f.render_widget(tx_title_paragraph, header_column_chunks[12]); // Tx is now index 12
+
+    let status_title_paragraph = Paragraph::new("Status")
+        .style(HEADER_STYLE)
+        .alignment(Alignment::Right); // Align right like other data columns
+    f.render_widget(status_title_paragraph, header_column_chunks[13]); // Status is now index 13
 }
 
 /// Renders a single bandwidth chart (Rx or Tx) and its associated speed.
@@ -98,11 +106,21 @@ fn render_bandwidth_chart_and_speed(
     color: Color,
     name: &str, // For dataset name
 ) {
-    // Split area: 70% chart, 30% speed
+    // Calculate a centered area within the provided cell area (e.g., 80% width)
+    let target_width = (area.width as f32 * 0.8).max(1.0).round() as u16; // Ensure at least 1 width
+    let padding = area.width.saturating_sub(target_width) / 2;
+    let centered_area = Rect {
+        x: area.x + padding,
+        y: area.y,
+        width: target_width,
+        height: area.height,
+    };
+
+    // Split the *centered* area: 70% chart, 30% speed
     let chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([Constraint::Percentage(70), Constraint::Percentage(30)])
-        .split(area);
+        .split(centered_area); // Use centered_area
     let chart_area = chunks[0];
     let speed_area = chunks[1];
 
@@ -146,7 +164,8 @@ fn render_bandwidth_chart_and_speed(
         let placeholder = Paragraph::new("-")
             .style(Style::default().fg(Color::DarkGray))
             .alignment(Alignment::Center);
-        f.render_widget(placeholder, area); // Use the whole area
+        // Render placeholder in the centered area, not the full original area
+        f.render_widget(placeholder, centered_area);
     }
 }
 
@@ -158,8 +177,10 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
         .constraints(COLUMN_CONSTRAINTS) // Use the updated constant for all columns
         .split(area);
 
-    let rx_area = column_chunks[12]; // 13th column is Rx chart
-    let tx_area = column_chunks[13]; // 14th column is Tx chart
+    // Indices adjusted after moving Status
+    let rx_area = column_chunks[11]; // Rx chart is now index 11
+    let tx_area = column_chunks[12]; // Tx chart is now index 12
+    let status_area = column_chunks[13]; // Status is now index 13
 
     // Get metrics and determine style + status
     let metrics_result = app.metrics.get(url);
@@ -181,26 +202,30 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
         ),
     };
 
-    for (idx, cell_text) in data_cells.iter().enumerate() {
-        // The index `idx` directly corresponds to the chunk index now
+    // Render data cells (Node to Err) into chunks 0-10
+    // Assuming data_cells still contains the status conceptually at index 11,
+    // but we render it separately later.
+    for (idx, cell_text) in data_cells.iter().take(11).enumerate() {
+        // Take only the first 11 cells (0-10)
         let chunk_index = idx;
 
-        // Render into chunks 0-11 (total 12 text columns)
-        if chunk_index < 12 {
-            // Skip gap column 10
-            let alignment = Alignment::Right;
-            let cell_paragraph = Paragraph::new(cell_text.clone())
-                .style(DATA_CELL_STYLE)
-                .alignment(alignment);
-            f.render_widget(cell_paragraph, column_chunks[chunk_index]);
-        }
+        // Render into chunks 0-10
+        let alignment = if idx == 0 {
+            Alignment::Left
+        } else {
+            Alignment::Right
+        }; // Align Node left
+        let cell_paragraph = Paragraph::new(cell_text.clone())
+            .style(DATA_CELL_STYLE)
+            .alignment(alignment);
+        f.render_widget(cell_paragraph, column_chunks[chunk_index]);
     }
 
-    // Render status separately in the correct column chunk
-    let status_paragraph = Paragraph::new(format!("{}", status_text))
-        .style(style)
+    // Render status separately in the new status column chunk
+    let status_paragraph = Paragraph::new(status_text) // format! is redundant for String
+        .style(style) // Use the determined style (Green/Yellow/Gray)
         .alignment(Alignment::Right);
-    f.render_widget(status_paragraph, column_chunks[11]); // Status is now index 11
+    f.render_widget(status_paragraph, status_area); // Render in the dedicated status_area (index 13)
 
     // --- Render Separate Rx/Tx Charts ---
     let (chart_data_in, chart_data_out, speed_in, speed_out) = metrics_result
