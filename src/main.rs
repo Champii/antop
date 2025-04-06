@@ -43,9 +43,9 @@ async fn main() -> Result<()> {
 
     let mut terminal = setup_terminal()?;
 
-    let app_instance = App::new(initial_servers);
+    let mut app = App::new(initial_servers, cli.storage_base_path.clone());
 
-    let run_result = run_app(&mut terminal, app_instance, &cli).await;
+    let run_result = run_app(&mut terminal, app, &cli).await;
 
     // Restore the terminal state using the ui module, regardless of run_result
     restore_terminal(&mut terminal)?;

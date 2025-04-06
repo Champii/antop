@@ -2,6 +2,9 @@ use crate::metrics::{NodeMetrics, parse_metrics};
 // use ratatui::widgets::{ListState, TableState}; // Removed, unused
 use std::{
     collections::{HashMap, VecDeque},
+    fs,            // Add fs for directory sizing
+    io,            // Add io for error handling
+    path::PathBuf, // Add PathBuf
     time::Instant,
 };
 
@@ -23,13 +26,16 @@ pub struct App {
     // Calculated totals
     pub total_cpu_usage: f64,
     pub total_allocated_storage: u64,
-    // pub table_state: TableState, // Removed, unused
-    // pub list_state: ListState, // Removed, unused
+    pub total_used_storage_bytes: Option<u64>, // NEW: Store calculated used storage (Option for errors)
+    // Config
+    pub storage_base_path: PathBuf, // NEW: Store the base path for storage
+                                    // pub table_state: TableState, // Removed, unused
+                                    // pub list_state: ListState, // Removed, unused
 }
 
 impl App {
-    /// Creates a new App instance with initial server list.
-    pub fn new(servers: Vec<(String, String)>) -> App {
+    /// Creates a new App instance with initial server list and storage path.
+    pub fn new(servers: Vec<(String, String)>, storage_base_path_str: String) -> App {
         let mut metrics_map = HashMap::new();
         let now = Instant::now();
         let speed_in_history = HashMap::new();
@@ -37,6 +43,12 @@ impl App {
         for (_name, url) in &servers {
             metrics_map.insert(url.clone(), Err("Fetching...".to_string()));
         }
+
+        // Resolve the storage base path relative to home directory
+        let storage_base_path = dirs::home_dir()
+            .map(|home| home.join(storage_base_path_str))
+            .unwrap_or_else(|| PathBuf::from(".")); // Fallback to current dir if home fails
+
         App {
             servers,
             metrics: metrics_map,
@@ -48,12 +60,15 @@ impl App {
             // Initialize totals
             total_cpu_usage: 0.0,
             total_allocated_storage: 0,
+            total_used_storage_bytes: None, // Initialize as None
+            // Store config
+            storage_base_path,
             // table_state: TableState::default(), // Removed, unused
             // list_state: ListState::default(), // Removed, unused
         }
     }
 
-    /// Updates metrics based on fetch results and calculates speeds and totals.
+    /// Updates metrics, calculates speeds, totals, and used storage.
     /// Takes results from fetch_metrics: Vec<(address, Result<raw_data, error_string>)>
     pub fn update_metrics(&mut self, results: Vec<(String, Result<String, String>)>) {
         let update_start_time = Instant::now();
@@ -170,5 +185,75 @@ impl App {
         }
         self.total_cpu_usage = current_total_cpu;
         self.total_allocated_storage = self.servers.len() as u64 * STORAGE_PER_NODE_BYTES;
+
+        // --- Calculate Total Used Storage ---
+        let mut current_total_used: u64 = 0;
+        let mut calculation_possible = true;
+        for (name, _url) in &self.servers {
+            let node_storage_path = self.storage_base_path.join(name).join("record_store");
+            match calculate_dir_size(&node_storage_path) {
+                Ok(size) => current_total_used += size,
+                Err(e) => {
+                    // Log error or mark calculation as failed
+                    eprintln!("Error calculating size for {:?}: {}", node_storage_path, e);
+                    calculation_possible = false; // If one fails, mark total as uncertain
+                    // Optionally break if one error means total is invalid
+                    // break;
+                }
+            }
+        }
+
+        if calculation_possible {
+            self.total_used_storage_bytes = Some(current_total_used);
+        } else {
+            self.total_used_storage_bytes = None; // Indicate error occurred
+        }
     }
+}
+
+/// Recursively calculate the total size of a directory.
+/// Includes basic error handling for permissions etc.
+fn calculate_dir_size(path: &PathBuf) -> io::Result<u64> {
+    let mut total_size = 0;
+    let metadata = fs::metadata(path)?; // Propagate initial metadata error
+
+    if metadata.is_dir() {
+        for entry_result in fs::read_dir(path)? {
+            let entry = entry_result?; // Handle read_dir entry error
+            let entry_path = entry.path();
+            let entry_metadata = match fs::symlink_metadata(&entry_path) {
+                Ok(md) => md,
+                Err(e) => {
+                    // Skip files/dirs we can't get metadata for (e.g., permission denied)
+                    eprintln!("Skipping {:?}: {}", entry_path, e);
+                    continue;
+                }
+            };
+
+            if entry_metadata.is_dir() {
+                // Recursively call, adding result if successful, propagating error otherwise
+                // If a subdirectory fails, maybe we should skip it instead of failing the whole calculation?
+                // Let's try skipping it:
+                match calculate_dir_size(&entry_path) {
+                    Ok(size) => total_size += size,
+                    Err(e) => {
+                        eprintln!(
+                            "Error calculating subdirectory size {:?}: {}. Skipping.",
+                            entry_path, e
+                        );
+                        // Continue to next entry instead of returning the error
+                        // return Err(e);
+                    }
+                }
+            } else if entry_metadata.is_file() {
+                total_size += entry_metadata.len();
+            }
+            // Ignore symlinks, sockets, etc. for size calculation
+        }
+    } else if metadata.is_file() {
+        // If the initial path is a file, just return its size
+        total_size = metadata.len();
+    }
+
+    Ok(total_size)
 }

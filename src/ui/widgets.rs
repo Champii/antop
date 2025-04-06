@@ -100,14 +100,34 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     // --- Storage Gauge ---
     let allocated_bytes = app.total_allocated_storage;
     let allocated_formatted = format_option_u64_bytes(Some(allocated_bytes));
+
+    let (storage_ratio, storage_label) = match app.total_used_storage_bytes {
+        Some(used_bytes) if allocated_bytes > 0 => {
+            let ratio = (used_bytes as f64 / allocated_bytes as f64)
+                .min(1.0)
+                .max(0.0);
+            let used_formatted = format_option_u64_bytes(Some(used_bytes));
+            let label = format!("{} / {}", used_formatted, allocated_formatted);
+            (ratio, label)
+        }
+        Some(_) => {
+            // Used bytes known, but allocation is 0 (no nodes?)
+            (0.0, format!("0 / {}", allocated_formatted))
+        }
+        None => {
+            // Error calculating used bytes
+            (0.0, "Error".to_string())
+        }
+    };
+
     // Simplified label
-    let storage_label = format!("Storage {}", allocated_formatted);
+    // let storage_label = allocated_formatted;
     let storage_gauge = Gauge::default()
-        // .block(Block::default().title(Span::styled("Alloc", Style::new().bold())))
+        // .block(Block::default().title(Span::styled("Store", Style::new().bold()))) // Shortened title
         .gauge_style(Style::default().fg(Color::Green).bg(Color::DarkGray))
-        // Show 100% allocated as before
-        .percent(100)
-        .label(storage_label);
+        .ratio(storage_ratio) // Use the calculated ratio
+        // .percent(100) // REMOVED
+        .label(storage_label); // Show Used / Allocated
     f.render_widget(storage_gauge, gauge_chunks[1]);
 }
 
