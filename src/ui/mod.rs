@@ -130,9 +130,10 @@ fn ui(f: &mut Frame, app: &mut App) {
         .margin(1)
         .constraints(
             [
-                Constraint::Length(1),
-                Constraint::Min(0),
-                Constraint::Length(1),
+                Constraint::Length(1), // Top Title
+                Constraint::Length(2), // Summary Gauges (Reduced from 3)
+                Constraint::Min(0),    // Node Table
+                Constraint::Length(1), // Bottom Status
             ]
             .as_ref(),
         )
@@ -141,10 +142,11 @@ fn ui(f: &mut Frame, app: &mut App) {
     let title = Paragraph::new("Autonomi Node Dashboard").style(Style::default().fg(Color::White));
     f.render_widget(title, main_chunks[0]);
 
-    let title = Paragraph::new("Press 'q' to quit").style(Style::default().fg(Color::White));
-    f.render_widget(title, main_chunks[2]);
+    // Render summary gauges in the new chunk
+    widgets::render_summary_gauges(f, app, main_chunks[1]);
 
-    render_custom_node_rows(f, app, main_chunks[1]);
+    // Render node table in the adjusted chunk
+    render_custom_node_rows(f, app, main_chunks[2]);
 
     let status_text = format!(
         "Last update: {}s ago | {} servers",
@@ -152,7 +154,8 @@ fn ui(f: &mut Frame, app: &mut App) {
         app.servers.len()
     );
     let status = Paragraph::new(status_text).alignment(Alignment::Right);
-    f.render_widget(status, main_chunks[2]);
+    // Render status in the last chunk
+    f.render_widget(status, main_chunks[3]);
 }
 
 /// Renders the main content area containing the node list (header + rows).

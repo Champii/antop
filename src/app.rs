@@ -7,6 +7,8 @@ use std::{
 
 // Number of data points to keep for sparklines
 pub const SPARKLINE_HISTORY_LENGTH: usize = 60;
+// Storage per node in bytes (35 GB)
+pub const STORAGE_PER_NODE_BYTES: u64 = 35 * 1_000_000_000;
 
 /// Holds the application state.
 pub struct App {
@@ -18,8 +20,11 @@ pub struct App {
     pub previous_update_time: Instant, // Store the time of the previous update
     pub speed_in_history: HashMap<String, VecDeque<u64>>, // History for Speed In sparkline
     pub speed_out_history: HashMap<String, VecDeque<u64>>, // History for Speed Out sparkline
-                                       // pub table_state: TableState, // Removed, unused
-                                       // pub list_state: ListState, // Removed, unused
+    // Calculated totals
+    pub total_cpu_usage: f64,
+    pub total_allocated_storage: u64,
+    // pub table_state: TableState, // Removed, unused
+    // pub list_state: ListState, // Removed, unused
 }
 
 impl App {
@@ -40,12 +45,15 @@ impl App {
             speed_in_history,
             speed_out_history,
             previous_update_time: now,
+            // Initialize totals
+            total_cpu_usage: 0.0,
+            total_allocated_storage: 0,
             // table_state: TableState::default(), // Removed, unused
             // list_state: ListState::default(), // Removed, unused
         }
     }
 
-    /// Updates metrics based on fetch results and calculates speeds.
+    /// Updates metrics based on fetch results and calculates speeds and totals.
     /// Takes results from fetch_metrics: Vec<(address, Result<raw_data, error_string>)>
     pub fn update_metrics(&mut self, results: Vec<(String, Result<String, String>)>) {
         let update_start_time = Instant::now();
@@ -150,5 +158,17 @@ impl App {
         self.previous_update_time = self.last_update;
         self.metrics = new_metrics_map;
         self.last_update = update_start_time;
+
+        // --- Calculate Totals ---
+        let mut current_total_cpu: f64 = 0.0;
+        for result in self.metrics.values() {
+            if let Ok(metrics) = result {
+                if let Some(cpu) = metrics.cpu_usage_percentage {
+                    current_total_cpu += cpu;
+                }
+            }
+        }
+        self.total_cpu_usage = current_total_cpu;
+        self.total_allocated_storage = self.servers.len() as u64 * STORAGE_PER_NODE_BYTES;
     }
 }

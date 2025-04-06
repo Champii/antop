@@ -2,16 +2,17 @@ use super::formatters::{
     // Use super to access sibling module
     create_list_item_cells,
     create_placeholder_cells,
+    format_option_u64_bytes, // Import for formatting storage
     format_speed_bps,
 };
-use crate::app::App;
+use crate::app::{App, STORAGE_PER_NODE_BYTES}; // Import App and constant
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
+    style::{Color, Style, Stylize}, // Add Stylize
     symbols,
-    text::Line,
-    widgets::{Axis, Chart, Dataset, GraphType, Paragraph},
+    text::{Line, Span}, // Add Span
+    widgets::{Axis, Block, Borders, Chart, Dataset, Gauge, GraphType, Paragraph}, // Add Block, Borders, Gauge
 };
 
 // --- Constants ---
@@ -51,6 +52,64 @@ pub const COLUMN_CONSTRAINTS: [Constraint; 14] = [
     Constraint::Ratio(4, 20), // 12: Tx Chart Area (was 13)
     Constraint::Ratio(1, 20), // 13: Status (was 11)
 ]; // Ratios adjusted to sum to 1 (11*1 + 2*4 + 1*1 = 20)
+
+// --- NEW: Summary Gauges ---
+
+/// Renders the summary section with gauges for CPU and Storage.
+pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
+    // Create a block for the summary section (optional, could be removed if no border needed)
+    // let summary_block = Block::default().borders(Borders::NONE);
+    // f.render_widget(summary_block, area);
+    // let inner_area = summary_block.inner(area); // Use area directly if no block
+
+    // Outer layout: Limit width to 20%
+    let outer_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(20), // Gauges area
+            Constraint::Percentage(80), // Empty space
+        ])
+        .split(area); // Use the full area passed to the function
+
+    let gauges_area = outer_chunks[0];
+
+    // Inner layout: Stack gauges vertically within the 20% area
+    let gauge_chunks = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1), // CPU Gauge (1 line high)
+            Constraint::Length(1), // Storage Gauge (1 line high)
+        ])
+        .split(gauges_area); // Split the restricted gauges_area
+
+    // --- CPU Gauge ---
+    let cpu_percentage = app.total_cpu_usage;
+    let max_cpu_possible = (app.servers.len() as f64 * 100.0).max(1.0);
+    let cpu_ratio = (cpu_percentage / max_cpu_possible).min(1.0).max(0.0);
+
+    // Simplified label for smaller space
+    let cpu_label = format!("CPU {:.0}%", cpu_percentage);
+    let cpu_gauge = Gauge::default()
+        // .block(Block::default().title(Span::styled("CPU", Style::new().bold())))
+        .gauge_style(Style::default().fg(Color::Blue).bg(Color::DarkGray))
+        .ratio(cpu_ratio) // Use ratio directly for better precision control
+        // .percent((cpu_ratio * 100.0) as u16) // Alternative using percent
+        .label(cpu_label);
+    f.render_widget(cpu_gauge, gauge_chunks[0]);
+
+    // --- Storage Gauge ---
+    let allocated_bytes = app.total_allocated_storage;
+    let allocated_formatted = format_option_u64_bytes(Some(allocated_bytes));
+    // Simplified label
+    let storage_label = format!("Storage {}", allocated_formatted);
+    let storage_gauge = Gauge::default()
+        // .block(Block::default().title(Span::styled("Alloc", Style::new().bold())))
+        .gauge_style(Style::default().fg(Color::Green).bg(Color::DarkGray))
+        // Show 100% allocated as before
+        .percent(100)
+        .label(storage_label);
+    f.render_widget(storage_gauge, gauge_chunks[1]);
+}
 
 // --- Rendering Helpers ---
 
