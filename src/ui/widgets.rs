@@ -208,14 +208,16 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     let in_text_label = Line::from(vec![
         Span::styled("In:  ", Style::default().fg(Color::DarkGray)),
         Span::styled(total_in_speed_str, Style::default().fg(Color::Cyan)),
-    ]);
+    ])
+    .alignment(Alignment::Left);
     let out_text_label = Line::from(vec![
         Span::styled("Out: ", Style::default().fg(Color::DarkGray)),
         Span::styled(total_out_speed_str, Style::default().fg(Color::Magenta)),
-    ]);
+    ])
+    .alignment(Alignment::Left);
 
-    let in_paragraph = Paragraph::new(in_text_label).alignment(Alignment::Right);
-    let out_paragraph = Paragraph::new(out_text_label).alignment(Alignment::Right);
+    let in_paragraph = Paragraph::new(in_text_label).alignment(Alignment::Left);
+    let out_paragraph = Paragraph::new(out_text_label).alignment(Alignment::Left);
 
     // Create Datasets for Charts (converting history data)
     let total_in_data: Vec<(f64, f64)> = app
@@ -264,8 +266,8 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     }
 
     // Convert bytes to GB for display
-    let total_data_in_gb = total_data_in_bytes as f64 / 1_000_000_000.0;
-    let total_data_out_gb = total_data_out_bytes as f64 / 1_000_000_000.0;
+    // let total_data_in_gb = total_data_in_bytes as f64 / 1_000_000_000.0; // No longer needed
+    // let total_data_out_gb = total_data_out_bytes as f64 / 1_000_000_000.0; // No longer needed
 
     // --- Data Column Rendering ---
     let data_col_layout = Layout::default()
@@ -273,20 +275,18 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
         .constraints([Constraint::Length(1), Constraint::Length(1)])
         .split(data_col_area);
 
-    let data_in_text = Line::from(vec![
-        Span::styled("In GB:", Style::default().fg(Color::DarkGray)),
-        Span::styled(
-            format!("{:.2}", total_data_in_gb),
-            Style::default().fg(Color::Cyan),
-        ),
-    ]);
-    let data_out_text = Line::from(vec![
-        Span::styled("Out GB:", Style::default().fg(Color::DarkGray)),
-        Span::styled(
-            format!("{:.2}", total_data_out_gb),
-            Style::default().fg(Color::Magenta),
-        ),
-    ]);
+    // Use the adaptive formatter
+    let formatted_data_in = format_option_u64_bytes(Some(total_data_in_bytes));
+    let formatted_data_out = format_option_u64_bytes(Some(total_data_out_bytes));
+
+    let data_in_text = Line::from(vec![Span::styled(
+        formatted_data_in,
+        Style::default().fg(Color::Cyan),
+    )]);
+    let data_out_text = Line::from(vec![Span::styled(
+        formatted_data_out,
+        Style::default().fg(Color::Magenta),
+    )]);
 
     f.render_widget(
         Paragraph::new(data_in_text).alignment(Alignment::Left),
