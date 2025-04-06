@@ -69,14 +69,6 @@ pub fn create_list_item_cells(name: &str, metrics: &NodeMetrics) -> Vec<String> 
         format!("{}%", format_float(metrics.cpu_usage_percentage, 2)), // CPU %
         format!("{}", format_option(metrics.connected_peers)),         // Peers (Live)
         format!("{}", format_option(metrics.peers_in_routing_table)),  // Routing Table Size
-        format!(
-            "{}",
-            format_option_u64_bytes(metrics.bandwidth_inbound_bytes)
-        ), // Total In
-        format!(
-            "{}",
-            format_option_u64_bytes(metrics.bandwidth_outbound_bytes)
-        ), // Total Out
         format!("{}", format_option(metrics.records_stored)),          // Records
         format!("{}", format_option(metrics.reward_wallet_balance)),   // Reward
         format!("{}", total_errors),                                   // Err
@@ -93,9 +85,7 @@ pub fn create_placeholder_cells(name: &str) -> Vec<String> {
         format!("{:<5}", "-"),   // CPU %
         format!("{:<7}", "-"),   // Peers (Live)
         format!("{:<7}", "-"),   // Routing Table Size
-        format!("{:<10}", "-"),  // BW In
-        format!("{:<10}", "-"),  // BW Out
-        format!("{:<7}", "-"),   // Records
+        format!("{}", "-"),      // Records
         format!("{:<8}", "-"),   // Reward
         format!("{}", "-"),      // Err
     ]
