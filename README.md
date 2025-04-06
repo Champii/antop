@@ -86,6 +86,4 @@ cargo install antop
 
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details (or choose Apache-2.0).
-
-It is recommended to add `license = "MIT OR Apache-2.0"` to your `Cargo.toml` file.
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
