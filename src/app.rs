@@ -24,6 +24,8 @@ pub struct App {
     pub speed_in_history: HashMap<String, VecDeque<u64>>, // History for Speed In sparkline
     pub speed_out_history: HashMap<String, VecDeque<u64>>, // History for Speed Out sparkline
     // Calculated totals
+    pub total_speed_in_history: VecDeque<u64>, // NEW: History for total speed in
+    pub total_speed_out_history: VecDeque<u64>, // NEW: History for total speed out
     pub total_cpu_usage: f64,
     pub total_allocated_storage: u64,
     pub total_used_storage_bytes: Option<u64>, // NEW: Store calculated used storage (Option for errors)
@@ -58,6 +60,8 @@ impl App {
             speed_out_history,
             previous_update_time: now,
             // Initialize totals
+            total_speed_in_history: VecDeque::with_capacity(SPARKLINE_HISTORY_LENGTH), // NEW
+            total_speed_out_history: VecDeque::with_capacity(SPARKLINE_HISTORY_LENGTH), // NEW
             total_cpu_usage: 0.0,
             total_allocated_storage: 0,
             total_used_storage_bytes: None, // Initialize as None
@@ -175,16 +179,35 @@ impl App {
         self.last_update = update_start_time;
 
         // --- Calculate Totals ---
+        let mut current_total_speed_in: f64 = 0.0; // NEW
+        let mut current_total_speed_out: f64 = 0.0; // NEW
         let mut current_total_cpu: f64 = 0.0;
         for result in self.metrics.values() {
             if let Ok(metrics) = result {
                 if let Some(cpu) = metrics.cpu_usage_percentage {
                     current_total_cpu += cpu;
                 }
+                // Sum speeds for total history NEW
+                current_total_speed_in += metrics.speed_in_bps.unwrap_or(0.0);
+                current_total_speed_out += metrics.speed_out_bps.unwrap_or(0.0);
             }
         }
         self.total_cpu_usage = current_total_cpu;
         self.total_allocated_storage = self.servers.len() as u64 * STORAGE_PER_NODE_BYTES;
+
+        // Update total speed history NEW
+        let total_in_val = current_total_speed_in.max(0.0) as u64;
+        let total_out_val = current_total_speed_out.max(0.0) as u64;
+
+        self.total_speed_in_history.push_back(total_in_val);
+        self.total_speed_out_history.push_back(total_out_val);
+
+        if self.total_speed_in_history.len() > SPARKLINE_HISTORY_LENGTH {
+            self.total_speed_in_history.pop_front();
+        }
+        if self.total_speed_out_history.len() > SPARKLINE_HISTORY_LENGTH {
+            self.total_speed_out_history.pop_front();
+        }
 
         // --- Calculate Total Used Storage ---
         let mut current_total_used: u64 = 0;

@@ -12,7 +12,7 @@ use ratatui::{
     style::{Color, Style, Stylize}, // Add Stylize
     symbols,
     text::{Line, Span}, // Add Span
-    widgets::{Axis, Block, Borders, Chart, Dataset, Gauge, GraphType, Paragraph}, // Add Block, Borders, Gauge
+    widgets::{Axis, Block, Borders, Chart, Dataset, Gauge, GraphType, Paragraph}, // Remove Sparkline, ensure Chart etc. are present
 };
 
 // --- Constants ---
@@ -62,18 +62,20 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     // f.render_widget(summary_block, area);
     // let inner_area = summary_block.inner(area); // Use area directly if no block
 
-    // Outer layout: Limit width to 20%
+    // Outer layout: Limit width for gauges and add space for speed
     let outer_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
             Constraint::Percentage(20), // Gauges area
-            Constraint::Percentage(80), // Empty space
+            Constraint::Percentage(15), // Speed area
+            Constraint::Percentage(65), // Empty space
         ])
         .split(area); // Use the full area passed to the function
 
     let gauges_area = outer_chunks[0];
+    let speed_area = outer_chunks[1]; // NEW: Area for speeds
 
-    // Inner layout: Stack gauges vertically within the 20% area
+    // Inner layout: Stack gauges vertically within the gauges_area
     let gauge_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
@@ -149,6 +151,132 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
         // .percent(100) // REMOVED
         .label(storage_label); // Show Used / Allocated
     f.render_widget(storage_gauge, gauge_chunks[1]);
+
+    // --- Speed Area --- NEW
+    // Calculate totals first
+    let mut total_in: f64 = 0.0;
+    let mut total_out: f64 = 0.0;
+
+    for metrics_result in app.metrics.values() {
+        if let Ok(metrics) = metrics_result {
+            total_in += metrics.speed_in_bps.unwrap_or(0.0);
+            total_out += metrics.speed_out_bps.unwrap_or(0.0);
+        }
+    }
+
+    // Layout for speed section (Text + Chart for In and Out)
+    let speed_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1), // Row for In speed + chart
+            Constraint::Length(1), // Row for Out speed + chart
+        ])
+        .split(speed_area);
+
+    let in_row_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(50), // Text Label (In)
+            Constraint::Percentage(50), // Chart (In)
+        ])
+        .split(speed_layout[0]);
+
+    let out_row_layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Percentage(50), // Text Label (Out)
+            Constraint::Percentage(50), // Chart (Out)
+        ])
+        .split(speed_layout[1]);
+
+    // Use calculated totals for text
+    let total_in_speed_str = format_speed_bps(Some(total_in));
+    let total_out_speed_str = format_speed_bps(Some(total_out));
+
+    let in_text_label = Line::from(vec![
+        Span::styled("In:  ", Style::default().fg(Color::DarkGray)),
+        Span::styled(total_in_speed_str, Style::default().fg(Color::Cyan)),
+    ]);
+    let out_text_label = Line::from(vec![
+        Span::styled("Out: ", Style::default().fg(Color::DarkGray)),
+        Span::styled(total_out_speed_str, Style::default().fg(Color::Magenta)),
+    ]);
+
+    let in_paragraph = Paragraph::new(in_text_label).alignment(Alignment::Right);
+    let out_paragraph = Paragraph::new(out_text_label).alignment(Alignment::Right);
+
+    // Create Datasets for Charts (converting history data)
+    let total_in_data: Vec<(f64, f64)> = app
+        .total_speed_in_history
+        .iter()
+        .enumerate()
+        .map(|(i, &val)| (i as f64, val as f64))
+        .collect();
+
+    let total_out_data: Vec<(f64, f64)> = app
+        .total_speed_out_history
+        .iter()
+        .enumerate()
+        .map(|(i, &val)| (i as f64, val as f64))
+        .collect();
+
+    // Create Charts (similar config to row charts)
+    let in_chart = create_summary_chart(&total_in_data, Color::Cyan, "Total Rx");
+    let out_chart = create_summary_chart(&total_out_data, Color::Magenta, "Total Tx");
+
+    // Render Text and Charts
+    f.render_widget(in_paragraph, in_row_layout[0]);
+    if let Some(chart) = in_chart {
+        f.render_widget(chart, in_row_layout[1]);
+    }
+    f.render_widget(out_paragraph, out_row_layout[0]);
+    if let Some(chart) = out_chart {
+        f.render_widget(chart, out_row_layout[1]);
+    }
+}
+
+// NEW Helper function to create summary charts consistently
+fn create_summary_chart<'a>(
+    data: &'a [(f64, f64)],
+    color: Color,
+    name: &'a str,
+) -> Option<Chart<'a>> {
+    if data.len() < 2 {
+        return None; // Not enough data to draw a line
+    }
+
+    let max_len = data.len();
+    let max_y = data
+        .iter()
+        .map(|&(_, y)| y)
+        .fold(0.0f64, |max, y| max.max(y));
+
+    // Define bounds, ensuring y starts at 0 and x covers the data range
+    let x_bounds = [0.0, (max_len.saturating_sub(1)).max(1) as f64];
+    let y_bounds = [0.0, max_y.max(1.0)]; // Ensure y-axis starts at 0 and has at least height 1
+
+    let dataset = Dataset::default()
+        .name(name)
+        .marker(symbols::Marker::Braille)
+        .graph_type(GraphType::Line)
+        .style(Style::default().fg(color))
+        .data(data);
+
+    let chart = Chart::new(vec![dataset])
+        .x_axis(
+            Axis::default()
+                .style(Style::default().fg(Color::DarkGray))
+                .bounds(x_bounds)
+                .labels::<Vec<Line<'_>>>(vec![]), // No labels
+        )
+        .y_axis(
+            Axis::default()
+                .style(Style::default().fg(Color::DarkGray))
+                .bounds(y_bounds)
+                .labels::<Vec<Line<'_>>>(vec![]), // No labels
+        );
+
+    Some(chart)
 }
 
 // --- Rendering Helpers ---
