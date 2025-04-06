@@ -138,11 +138,11 @@ fn ui(f: &mut Frame, app: &mut App) {
         )
         .split(f.area());
 
-    let title = Paragraph::new(
-        "Autonomi Node Dashboard | Press 'q' to quit | Use Up/Down keys to select node for chart",
-    )
-    .style(Style::default().fg(Color::White));
+    let title = Paragraph::new("Autonomi Node Dashboard").style(Style::default().fg(Color::White));
     f.render_widget(title, main_chunks[0]);
+
+    let title = Paragraph::new("Press 'q' to quit").style(Style::default().fg(Color::White));
+    f.render_widget(title, main_chunks[2]);
 
     render_custom_node_rows(f, app, main_chunks[1]);
 
