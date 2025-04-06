@@ -36,12 +36,11 @@ A terminal dashboard for monitoring Autonomi node instances.
     ```
 3.  The executable will be located at `target/release/antop`.
 
-### From Crates.io (Optional - Placeholder)
+### From Crates.io 
 
 ```bash
 cargo install antop
 ```
-(Note: This will only work once the crate is published.)
 
 ## Usage
 

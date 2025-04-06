@@ -174,7 +174,7 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
     }
 
     let mut constraints = vec![Constraint::Length(1)];
-    constraints.extend(std::iter::repeat(Constraint::Length(1)).take(num_servers));
+    constraints.extend(std::iter::repeat_n(Constraint::Length(1), num_servers));
 
     let vertical_chunks = Layout::default()
         .direction(Direction::Vertical)

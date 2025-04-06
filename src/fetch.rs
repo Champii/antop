@@ -1,18 +1,19 @@
 use anyhow::Result; // Keep Result for potential internal errors, though return type is specific
 use futures::future::join_all;
-use reqwest;
 use std::time::Duration;
+
+// Add the specific import instead of the crate import
+use reqwest::Client;
 
 /// Fetches metrics data from a list of server addresses concurrently.
 /// Returns a vector of tuples: (address, Result<raw_metrics_string, error_string>).
-pub async fn fetch_metrics(
-    addresses: &[String],
-) -> Vec<(String, Result<String, String>)> { // Using Result<String, String> as per original design
-    let client = reqwest::Client::builder()
+pub async fn fetch_metrics(addresses: &[String]) -> Vec<(String, Result<String, String>)> {
+    // Using Result<String, String> as per original design
+    let client = Client::builder() // Use Client directly
         .timeout(Duration::from_secs(2)) // Shorter timeout for TUI responsiveness
         .build()
         // Consider proper error handling instead of unwrap_or_else
-        .unwrap_or_else(|_| reqwest::Client::new());
+        .unwrap_or_else(|_| Client::new()); // Use Client directly
 
     let futures = addresses.iter().map(|addr| {
         let client = client.clone();
