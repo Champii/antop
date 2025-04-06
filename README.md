@@ -1,15 +1,12 @@
 # Antop
 
-<!-- Badges placeholder -->
 [![Build Status](https://img.shields.io/github/actions/workflow/status/champii/antop/rust.yml?branch=master)](https://github.com/champii/antop/actions)
 [![Crates.io](https://img.shields.io/crates/v/antop.svg)](https://crates.io/crates/antop)
-[![License](https://img.shields.io/crates/l/antop.svg)](https://opensource.org/licenses/MIT) <!-- Or Apache-2.0 -->
+[![License](https://img.shields.io/crates/l/antop.svg)](https://opensource.org/licenses/MIT) 
 
 A terminal dashboard for monitoring Autonomi node instances.
 
-<!-- i want a img here -->
 ![Screenshot](./media/screenshot.png)
-
 
 ## Features
 
@@ -46,11 +43,12 @@ cargo install antop
 
 1.  Run the application:
     ```bash
-    ./target/release/antop
-    ```
-    Or, if installed via `cargo install`:
-    ```bash
     antop
+    ```
+
+    Or, if installed via source:
+    ```bash
+    cargo run
     ```
 
 2.  **Node Discovery:**
@@ -59,18 +57,6 @@ cargo install antop
       ```bash
       antop --logs "/path/to/your/antnode/logs/**/*.log"
       ```
-
-3.  **Keybindings:**
-    *   `q`: Quit the application.
-
-
-## Development
-
-1.  **Setup:** Follow the "Installation from Source" steps.
-2.  **Run in Debug Mode:**
-    ```bash
-    cargo run -- --logs "/path/to/logs/*.log"
-    ```
 
 ## License
 
