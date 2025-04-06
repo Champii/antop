@@ -91,7 +91,7 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     let cpu_label = format!("CPU {:.0}%", cpu_percentage);
     let cpu_gauge = Gauge::default()
         // .block(Block::default().title(Span::styled("CPU", Style::new().bold())))
-        .gauge_style(Style::default().fg(Color::Blue).bg(Color::DarkGray))
+        .gauge_style(Style::default().fg(Color::Blue).bg(Color::Black))
         .ratio(cpu_ratio) // Use ratio directly for better precision control
         // .percent((cpu_ratio * 100.0) as u16) // Alternative using percent
         .label(cpu_label);
@@ -124,7 +124,7 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     // let storage_label = allocated_formatted;
     let storage_gauge = Gauge::default()
         // .block(Block::default().title(Span::styled("Store", Style::new().bold()))) // Shortened title
-        .gauge_style(Style::default().fg(Color::Green).bg(Color::DarkGray))
+        .gauge_style(Style::default().fg(Color::Green).bg(Color::Black))
         .ratio(storage_ratio) // Use the calculated ratio
         // .percent(100) // REMOVED
         .label(storage_label); // Show Used / Allocated
