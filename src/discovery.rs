@@ -69,7 +69,7 @@ fn process_log_file(path: &PathBuf, re: &Regex) -> Result<Option<String>> {
     let content =
         fs::read_to_string(path).with_context(|| format!("Failed to read log file: {:?}", path))?;
     let mut last_match: Option<String> = None;
-    for line in content.lines() {
+    for line in content.lines().take(40) {
         if let Some(caps) = re.captures(line) {
             if let Some(address) = caps.get(1) {
                 last_match = Some(address.as_str().to_string());
