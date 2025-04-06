@@ -64,22 +64,28 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     // f.render_widget(summary_block, area);
     // let inner_area = summary_block.inner(area); // Use area directly if no block
 
-    // Outer layout: Limit width for gauges and add space for speed
+    // Outer layout: Gauges | Spacer | Speed | Spacer | Data | Spacer | Recs/Rwds | Spacer | Peers | Spacer
     let outer_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(20), // Gauges area
-            Constraint::Percentage(15), // Speed area
-            Constraint::Percentage(15), // Totals area (Recs/Rwds, In/Out)
-            Constraint::Percentage(15), // NEW: Peers area
-            Constraint::Percentage(35), // Empty space
+            Constraint::Percentage(20), // 1: Gauges area
+            Constraint::Length(2),      // 2: Spacer
+            Constraint::Percentage(15), // 3: Speed area
+            Constraint::Length(2),      // 4: Spacer
+            Constraint::Percentage(12), // 5: Data (In/Out GB) Column
+            Constraint::Length(2),      // 6: Spacer
+            Constraint::Percentage(12), // 7: Recs/Rwds Column
+            Constraint::Length(2),      // 8: Spacer
+            Constraint::Percentage(10), // 9: Peers Column
+            Constraint::Min(0),         // 10: Remaining empty space
         ])
-        .split(area); // Use the full area passed to the function
+        .split(area);
 
     let gauges_area = outer_chunks[0];
-    let speed_area = outer_chunks[1];
-    let totals_area = outer_chunks[2];
-    let peers_area = outer_chunks[3]; // NEW: Area for Peers total
+    let speed_area = outer_chunks[2];
+    let data_col_area = outer_chunks[4]; // NEW: Area for Data column
+    let recs_rwds_col_area = outer_chunks[6]; // NEW: Area for Recs/Rwds column
+    let peers_col_area = outer_chunks[8]; // NEW: Area for Peers column
 
     // Inner layout: Stack gauges vertically within the gauges_area
     let gauge_chunks = Layout::default()
@@ -240,12 +246,12 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
         f.render_widget(chart, out_row_layout[1]);
     }
 
-    // --- Totals Area (Recs/Rwds, In/Out) ---
+    // --- Totals Calculation (unchanged) ---
     let mut total_records: u64 = 0;
     let mut total_rewards: u64 = 0;
     let mut total_data_in_bytes: u64 = 0;
     let mut total_data_out_bytes: u64 = 0;
-    let mut total_live_peers: u64 = 0; // Still calculate here for simplicity
+    let mut total_live_peers: u64 = 0;
 
     for metrics_result in app.metrics.values() {
         if let Ok(metrics) = metrics_result {
@@ -253,7 +259,7 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
             total_rewards += metrics.reward_wallet_balance.unwrap_or(0);
             total_data_in_bytes += metrics.bandwidth_inbound_bytes.unwrap_or(0);
             total_data_out_bytes += metrics.bandwidth_outbound_bytes.unwrap_or(0);
-            total_live_peers += metrics.connected_peers.unwrap_or(0); // Calculate peers total
+            total_live_peers += metrics.connected_peers.unwrap_or(0);
         }
     }
 
@@ -261,59 +267,67 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     let total_data_in_gb = total_data_in_bytes as f64 / 1_000_000_000.0;
     let total_data_out_gb = total_data_out_bytes as f64 / 1_000_000_000.0;
 
-    // Layout for the Totals section - Now 2 rows
-    let totals_layout = Layout::default()
+    // --- Data Column Rendering ---
+    let data_col_layout = Layout::default()
         .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(1), // Row 1: Recs | Rwds
-            Constraint::Length(1), // Row 2: In GB | Out GB
-                                   // Row 3 removed
-        ])
-        .split(totals_area); // Render into the 'totals_area'
+        .constraints([Constraint::Length(1), Constraint::Length(1)])
+        .split(data_col_area);
 
-    // Create combined Lines for rows 1 and 2
-    let recs_rwds_text = Line::from(vec![
-        Span::styled("Recs:", Style::default().fg(Color::DarkGray)),
+    let data_in_text = Line::from(vec![
+        Span::styled("In GB:", Style::default().fg(Color::DarkGray)),
         Span::styled(
-            format!("{:<5}", total_records),
-            Style::default().fg(Color::White),
-        ),
-        Span::raw("| "), // Re-add separator if user removed it accidentally
-        Span::styled("Rwds:", Style::default().fg(Color::DarkGray)),
-        Span::styled(
-            format!("{:<5}", total_rewards),
-            Style::default().fg(Color::Yellow),
-        ),
-    ]);
-
-    let data_in_out_text = Line::from(vec![
-        Span::styled("In: ", Style::default().fg(Color::DarkGray)),
-        Span::styled(
-            format!("{:<5.2}GB", total_data_in_gb),
+            format!("{:.2}", total_data_in_gb),
             Style::default().fg(Color::Cyan),
         ),
-        Span::raw("| "), // Re-add separator if user removed it accidentally
-        Span::styled("Out:", Style::default().fg(Color::DarkGray)),
+    ]);
+    let data_out_text = Line::from(vec![
+        Span::styled("Out GB:", Style::default().fg(Color::DarkGray)),
         Span::styled(
-            format!("{:<5.2}GB", total_data_out_gb),
+            format!("{:.2}", total_data_out_gb),
             Style::default().fg(Color::Magenta),
         ),
     ]);
 
-    // Peers text creation removed from here
-
-    // Render the paragraphs for the middle totals section
     f.render_widget(
-        Paragraph::new(recs_rwds_text).alignment(Alignment::Left),
-        totals_layout[0],
+        Paragraph::new(data_in_text).alignment(Alignment::Left),
+        data_col_layout[0],
     );
     f.render_widget(
-        Paragraph::new(data_in_out_text).alignment(Alignment::Left),
-        totals_layout[1],
+        Paragraph::new(data_out_text).alignment(Alignment::Left),
+        data_col_layout[1],
     );
-    // Peers rendering removed from here
 
-    // --- NEW: Peers Area ---
+    // --- Recs/Rwds Column Rendering ---
+    let recs_rwds_col_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Length(1)])
+        .split(recs_rwds_col_area);
+
+    let recs_text = Line::from(vec![
+        Span::styled("Recs:", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            format!("{}", total_records),
+            Style::default().fg(Color::White),
+        ),
+    ]);
+    let rwds_text = Line::from(vec![
+        Span::styled("Rwds:", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            format!("{}", total_rewards),
+            Style::default().fg(Color::Yellow),
+        ),
+    ]);
+
+    f.render_widget(
+        Paragraph::new(recs_text).alignment(Alignment::Left),
+        recs_rwds_col_layout[0],
+    );
+    f.render_widget(
+        Paragraph::new(rwds_text).alignment(Alignment::Left),
+        recs_rwds_col_layout[1],
+    );
+
+    // --- Peers Column Rendering ---
     let peers_text = Line::from(vec![
         Span::styled("Peers:", Style::default().fg(Color::DarkGray)),
         Span::styled(
@@ -321,10 +335,10 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
             Style::default().fg(Color::Blue),
         ),
     ]);
-    // Render the peers text in its own area, align left for consistency? Or center? Let's try left.
+
     f.render_widget(
         Paragraph::new(peers_text).alignment(Alignment::Left),
-        peers_area,
+        peers_col_area,
     );
 }
 
