@@ -16,3 +16,4 @@ dirs = "5.0"
 futures = "0.3.31"
 clap = { version = "4", features = ["derive"] }
 humansize = "2"
+chrono = { version = "0.4", features = ["serde"] }

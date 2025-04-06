@@ -1,5 +1,5 @@
 use crate::metrics::{NodeMetrics, parse_metrics};
-use ratatui::widgets::{ListState, TableState};
+// use ratatui::widgets::{ListState, TableState}; // Removed, unused
 use std::{
     collections::{HashMap, VecDeque},
     time::Instant,
@@ -18,8 +18,8 @@ pub struct App {
     pub previous_update_time: Instant, // Store the time of the previous update
     pub speed_in_history: HashMap<String, VecDeque<u64>>, // History for Speed In sparkline
     pub speed_out_history: HashMap<String, VecDeque<u64>>, // History for Speed Out sparkline
-    pub table_state: TableState,
-    pub list_state: ListState, // State for the new List widget
+                                       // pub table_state: TableState, // Removed, unused
+                                       // pub list_state: ListState, // Removed, unused
 }
 
 impl App {
@@ -40,8 +40,8 @@ impl App {
             speed_in_history,
             speed_out_history,
             previous_update_time: now,
-            table_state: TableState::default(),
-            list_state: ListState::default(),
+            // table_state: TableState::default(), // Removed, unused
+            // list_state: ListState::default(), // Removed, unused
         }
     }
 

@@ -4,7 +4,7 @@ use super::formatters::{
     create_placeholder_cells,
     format_speed_bps,
 };
-use crate::{app::App, metrics::NodeMetrics};
+use crate::app::App;
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Rect},

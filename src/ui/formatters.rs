@@ -35,16 +35,6 @@ pub fn format_float(opt: Option<f64>, precision: usize) -> String {
     }
 }
 
-// Helper to format peer counts concisely
-pub fn format_peers(connected: Option<u32>, total: Option<u32>) -> String {
-    match (connected, total) {
-        (Some(c), Some(t)) => format!("{}/{}", c, t),
-        (Some(c), None) => format!("{}/-", c),
-        (None, Some(t)) => format!("-/{}", t),
-        (None, None) => "-".to_string(),
-    }
-}
-
 // Helper to format Option<u64> bytes into human-readable size (KB, MB, GB)
 pub fn format_option_u64_bytes(opt: Option<u64>) -> String {
     match opt {
