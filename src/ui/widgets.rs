@@ -12,7 +12,9 @@ use ratatui::{
     style::{Color, Style, Stylize}, // Add Stylize
     symbols,
     text::{Line, Span}, // Add Span
-    widgets::{Axis, Block, Borders, Chart, Dataset, Gauge, GraphType, Paragraph}, // Remove Sparkline, ensure Chart etc. are present
+    widgets::{
+        Axis, Block, Borders, Cell, Chart, Dataset, Gauge, GraphType, Paragraph, Row, Table,
+    },
 };
 
 // --- Constants ---
@@ -68,12 +70,16 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
         .constraints([
             Constraint::Percentage(20), // Gauges area
             Constraint::Percentage(15), // Speed area
-            Constraint::Percentage(65), // Empty space
+            Constraint::Percentage(15), // Totals area (Recs/Rwds, In/Out)
+            Constraint::Percentage(15), // NEW: Peers area
+            Constraint::Percentage(35), // Empty space
         ])
         .split(area); // Use the full area passed to the function
 
     let gauges_area = outer_chunks[0];
-    let speed_area = outer_chunks[1]; // NEW: Area for speeds
+    let speed_area = outer_chunks[1];
+    let totals_area = outer_chunks[2];
+    let peers_area = outer_chunks[3]; // NEW: Area for Peers total
 
     // Inner layout: Stack gauges vertically within the gauges_area
     let gauge_chunks = Layout::default()
@@ -233,6 +239,93 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     if let Some(chart) = out_chart {
         f.render_widget(chart, out_row_layout[1]);
     }
+
+    // --- Totals Area (Recs/Rwds, In/Out) ---
+    let mut total_records: u64 = 0;
+    let mut total_rewards: u64 = 0;
+    let mut total_data_in_bytes: u64 = 0;
+    let mut total_data_out_bytes: u64 = 0;
+    let mut total_live_peers: u64 = 0; // Still calculate here for simplicity
+
+    for metrics_result in app.metrics.values() {
+        if let Ok(metrics) = metrics_result {
+            total_records += metrics.records_stored.unwrap_or(0);
+            total_rewards += metrics.reward_wallet_balance.unwrap_or(0);
+            total_data_in_bytes += metrics.bandwidth_inbound_bytes.unwrap_or(0);
+            total_data_out_bytes += metrics.bandwidth_outbound_bytes.unwrap_or(0);
+            total_live_peers += metrics.connected_peers.unwrap_or(0); // Calculate peers total
+        }
+    }
+
+    // Convert bytes to GB for display
+    let total_data_in_gb = total_data_in_bytes as f64 / 1_000_000_000.0;
+    let total_data_out_gb = total_data_out_bytes as f64 / 1_000_000_000.0;
+
+    // Layout for the Totals section - Now 2 rows
+    let totals_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(1), // Row 1: Recs | Rwds
+            Constraint::Length(1), // Row 2: In GB | Out GB
+                                   // Row 3 removed
+        ])
+        .split(totals_area); // Render into the 'totals_area'
+
+    // Create combined Lines for rows 1 and 2
+    let recs_rwds_text = Line::from(vec![
+        Span::styled("Recs:", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            format!("{:<5}", total_records),
+            Style::default().fg(Color::White),
+        ),
+        Span::raw("| "), // Re-add separator if user removed it accidentally
+        Span::styled("Rwds:", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            format!("{:<5}", total_rewards),
+            Style::default().fg(Color::Yellow),
+        ),
+    ]);
+
+    let data_in_out_text = Line::from(vec![
+        Span::styled("In: ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            format!("{:<5.2}GB", total_data_in_gb),
+            Style::default().fg(Color::Cyan),
+        ),
+        Span::raw("| "), // Re-add separator if user removed it accidentally
+        Span::styled("Out:", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            format!("{:<5.2}GB", total_data_out_gb),
+            Style::default().fg(Color::Magenta),
+        ),
+    ]);
+
+    // Peers text creation removed from here
+
+    // Render the paragraphs for the middle totals section
+    f.render_widget(
+        Paragraph::new(recs_rwds_text).alignment(Alignment::Left),
+        totals_layout[0],
+    );
+    f.render_widget(
+        Paragraph::new(data_in_out_text).alignment(Alignment::Left),
+        totals_layout[1],
+    );
+    // Peers rendering removed from here
+
+    // --- NEW: Peers Area ---
+    let peers_text = Line::from(vec![
+        Span::styled("Peers:", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            format!("{}", total_live_peers),
+            Style::default().fg(Color::Blue),
+        ),
+    ]);
+    // Render the peers text in its own area, align left for consistency? Or center? Let's try left.
+    f.render_widget(
+        Paragraph::new(peers_text).alignment(Alignment::Left),
+        peers_area,
+    );
 }
 
 // NEW Helper function to create summary charts consistently

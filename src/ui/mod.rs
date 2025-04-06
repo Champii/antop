@@ -131,7 +131,7 @@ fn ui(f: &mut Frame, app: &mut App) {
         .constraints(
             [
                 Constraint::Length(2), // Top Title
-                Constraint::Length(2), // Summary Gauges (Reduced from 3)
+                Constraint::Length(2), // Summary Gauges (Height reduced to 2 as Peers is now separate)
                 Constraint::Min(0),    // Node Table
                 Constraint::Length(1), // Bottom Status
             ]
