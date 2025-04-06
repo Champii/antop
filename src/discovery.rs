@@ -3,63 +3,66 @@ use glob::glob;
 use regex::Regex;
 use std::{fs, path::PathBuf};
 
-/// Finds antnode log files and extracts the last reported metrics server address from each.
-/// Uses the provided `log_pattern_override` if Some, otherwise defaults to ~/.local/share/autonomi/node/*/logs/antnode.log
-pub fn find_metrics_servers(log_pattern_override: Option<&str>) -> Result<Vec<(String, String)>> {
-    let pattern_str = match log_pattern_override {
-        Some(pattern) => pattern.to_string(),
-        None => {
-            let home_dir = dirs::home_dir().context("Failed to get home directory")?;
-            home_dir
-                .join(".local/share/autonomi/node/*/logs/antnode.log")
-                .to_string_lossy()
-                .to_string()
-        }
-    };
-
+/// Finds node directories matching the glob pattern, then looks for log files within them
+/// to extract the last reported metrics server address from each.
+pub fn find_metrics_servers(node_path_glob: &str) -> Result<Vec<(String, String)>> {
     let re = Regex::new(r"Metrics server on (\S+)")?;
     let mut servers: Vec<(String, String)> = Vec::new();
 
-    for entry in glob(&pattern_str).context("Failed to read glob pattern")? {
+    for entry in glob(node_path_glob).context("Failed to read node path glob pattern")? {
         match entry {
-            Ok(path) => {
-                if path.is_file() {
-                    // Extract server name from path: .../node/<server_name>/logs/antnode.log
-                    let server_name = path
-                        .parent() // .../node/<server_name>/logs
-                        .and_then(|p| p.parent()) // .../node/<server_name>
-                        .and_then(|p| p.file_name()) // <server_name>
+            Ok(node_dir) => {
+                if node_dir.is_dir() {
+                    let log_file_path = node_dir.join("logs").join("antnode.log");
+
+                    // Extract server name from the node directory path
+                    let server_name = node_dir
+                        .file_name()
                         .and_then(|os_str| os_str.to_str())
                         .map(|s| s.to_string());
 
                     if let Some(name) = server_name {
-                        match process_log_file(&path, &re) {
-                            Ok(Some(address)) => {
-                                servers.push((name, address));
+                        if log_file_path.is_file() {
+                            match process_log_file(&log_file_path, &re) {
+                                Ok(Some(address)) => {
+                                    servers.push((name.clone(), address));
+                                }
+                                Ok(None) => {
+                                    // Log file exists, but no metrics address inside
+                                    // eprintln!(
+                                    //    "Warning: No metrics address found in log file for server {}: {:?}",
+                                    //    name,
+                                    //    log_file_path
+                                    // );
+                                }
+                                Err(e) => {
+                                    // Error reading or processing the log file content
+                                    eprintln!(
+                                        "Error processing log file for server {}: {:?}: {}",
+                                        name, log_file_path, e
+                                    );
+                                }
                             }
-                            Ok(None) => {
-                                // Log file found, but no metrics address inside
-                                // eprintln!("Warning: No metrics address found in log file: {:?}", path);
-                            }
-                            Err(e) => {
-                                // Error reading or processing the log file content
-                                eprintln!("Error processing log file {:?}: {}", path, e);
-                            }
+                        } else {
+                            // Log file doesn't exist for this node directory
+                            // eprintln!("Warning: Log file not found for server {}: {:?}", name, log_file_path);
                         }
                     } else {
                         // Path structure didn't allow extracting a name
                         eprintln!(
                             "Warning: Could not extract server name from path: {:?}",
-                            path
+                            node_dir
                         );
                     }
                 }
             }
-            Err(e) => eprintln!("Error processing glob entry: {}", e),
+            Err(e) => eprintln!("Error processing node path glob entry: {}", e),
         }
     }
 
     servers.sort_by(|a, b| a.0.cmp(&b.0));
+    // Note: Deduping by address might hide multiple nodes reporting the same address.
+    // Consider if this is the desired behavior.
     servers.dedup_by(|a, b| a.1 == b.1);
     Ok(servers)
 }

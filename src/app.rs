@@ -1,12 +1,13 @@
 use crate::metrics::{NodeMetrics, parse_metrics};
 // use ratatui::widgets::{ListState, TableState}; // Removed, unused
+use glob::glob;
 use std::{
     collections::{HashMap, VecDeque},
     fs,            // Add fs for directory sizing
     io,            // Add io for error handling
     path::PathBuf, // Add PathBuf
     time::Instant,
-};
+}; // Add glob
 
 // Number of data points to keep for sparklines
 pub const SPARKLINE_HISTORY_LENGTH: usize = 60;
@@ -37,15 +38,16 @@ pub struct App {
     pub summary_total_records: u64,
     pub summary_total_rewards: u64,
     pub summary_total_live_peers: u64,
-    // Config
-    pub storage_base_path: PathBuf, // NEW: Store the base path for storage
-                                    // pub table_state: TableState, // Removed, unused
-                                    // pub list_state: ListState, // Removed, unused
+    // Config & Discovered Paths
+    // pub node_path_glob: String, // Store the glob pattern used for discovery - REMOVED (unused)
+    pub node_record_store_paths: HashMap<String, PathBuf>, // Map server name to its RECORD STORE path
+                                                           // pub table_state: TableState, // Removed, unused
+                                                           // pub list_state: ListState, // Removed, unused
 }
 
 impl App {
-    /// Creates a new App instance with initial server list and storage path.
-    pub fn new(servers: Vec<(String, String)>, storage_base_path_str: String) -> App {
+    /// Creates a new App instance with initial server list and storage path glob.
+    pub fn new(servers: Vec<(String, String)>, node_path_glob_str: String) -> App {
         let mut metrics_map = HashMap::new();
         let now = Instant::now();
         let speed_in_history = HashMap::new();
@@ -54,10 +56,65 @@ impl App {
             metrics_map.insert(url.clone(), Err("Fetching...".to_string()));
         }
 
-        // Resolve the storage base path relative to home directory
-        let storage_base_path = dirs::home_dir()
-            .map(|home| home.join(storage_base_path_str))
-            .unwrap_or_else(|| PathBuf::from(".")); // Fallback to current dir if home fails
+        // Discover record store paths from the glob pattern
+        let mut node_record_store_paths = HashMap::new(); // Renamed
+        eprintln!(
+            "🔍 Discovering record store paths using glob: {}",
+            node_path_glob_str
+        );
+        match glob(&node_path_glob_str) {
+            Ok(paths) => {
+                for entry in paths {
+                    match entry {
+                        Ok(node_dir) => {
+                            eprintln!("  -> Found path: {:?}", node_dir);
+                            if node_dir.is_dir() {
+                                eprintln!("    ✅ It's a directory.");
+                                // Look directly for record_store
+                                let record_store_path = node_dir.join("record_store");
+                                eprintln!(
+                                    "    ❓ Checking for record_store subdir: {:?}",
+                                    record_store_path
+                                );
+                                // Check if the record_store subdirectory exists and is a directory
+                                if record_store_path.is_dir() {
+                                    eprintln!(
+                                        "      ✅ Record store subdir found and is a directory."
+                                    );
+                                    if let Some(server_name) =
+                                        node_dir.file_name().and_then(|n| n.to_str())
+                                    {
+                                        eprintln!(
+                                            "        ➕ Adding server: '{}' with path: {:?}",
+                                            server_name, record_store_path
+                                        );
+                                        // Store the record_store path directly
+                                        node_record_store_paths
+                                            .insert(server_name.to_string(), record_store_path);
+                                    } else {
+                                        eprintln!(
+                                            "        ❌ Warning: Could not extract server name from node path: {:?}",
+                                            node_dir
+                                        );
+                                    }
+                                } else {
+                                    eprintln!(
+                                        "      ❌ Record store subdir missing or not a directory."
+                                    );
+                                }
+                            } else {
+                                eprintln!("    ❌ Not a directory, skipping.");
+                            }
+                        }
+                        Err(e) => eprintln!("  ❌ Error processing glob entry: {}", e),
+                    }
+                }
+            }
+            Err(e) => eprintln!(
+                "❌ Error reading node path glob pattern: {}. Storage size might be inaccurate.",
+                e
+            ),
+        }
 
         App {
             servers,
@@ -71,7 +128,7 @@ impl App {
             total_speed_in_history: VecDeque::with_capacity(SPARKLINE_HISTORY_LENGTH), // NEW
             total_speed_out_history: VecDeque::with_capacity(SPARKLINE_HISTORY_LENGTH), // NEW
             total_cpu_usage: 0.0,
-            total_allocated_storage: 0,
+            total_allocated_storage: 0, // Will be calculated later based on discovered nodes
             total_used_storage_bytes: None, // Initialize as None
             // NEW: Initialize summary fields
             summary_total_in_speed: 0.0,
@@ -81,10 +138,11 @@ impl App {
             summary_total_records: 0,
             summary_total_rewards: 0,
             summary_total_live_peers: 0,
-            // Store config
-            storage_base_path,
-            // table_state: TableState::default(), // Removed, unused
-            // list_state: ListState::default(), // Removed, unused
+            // Store config & discovered paths
+            // node_path_glob: node_path_glob_str, // REMOVED (unused)
+            node_record_store_paths, // Renamed
+                                     // table_state: TableState::default(), // Removed, unused
+                                     // list_state: ListState::default(), // Removed, unused
         }
     }
 
@@ -222,7 +280,9 @@ impl App {
             current_total_live_peers += metrics.connected_peers.unwrap_or(0);
         }
         self.total_cpu_usage = current_total_cpu;
-        self.total_allocated_storage = self.servers.len() as u64 * STORAGE_PER_NODE_BYTES;
+        // Calculate allocated storage based on the number of discovered nodes with record stores
+        self.total_allocated_storage =
+            self.node_record_store_paths.len() as u64 * STORAGE_PER_NODE_BYTES; // Use renamed map
         // NEW: Store calculated summary totals
         self.summary_total_in_speed = current_total_speed_in;
         self.summary_total_out_speed = current_total_speed_out;
@@ -248,25 +308,38 @@ impl App {
 
         // --- Calculate Total Used Storage ---
         let mut current_total_used: u64 = 0;
-        let mut calculation_possible = true;
-        for (name, _url) in &self.servers {
-            let node_storage_path = self.storage_base_path.join(name).join("record_store");
-            match calculate_dir_size(&node_storage_path) {
-                Ok(size) => current_total_used += size,
-                Err(e) => {
-                    // Log error or mark calculation as failed
-                    eprintln!("Error calculating size for {:?}: {}", node_storage_path, e);
-                    calculation_possible = false; // If one fails, mark total as uncertain
-                    // Optionally break if one error means total is invalid
-                    // break;
+        let calculation_possible = true;
+        // Iterate over discovered record store paths
+        for record_store_path in self.node_record_store_paths.values() {
+            // Use renamed map
+            // The path IS the record_store path, so check it directly
+            if record_store_path.is_dir() {
+                // Check should pass if it was added correctly
+                match calculate_dir_size(record_store_path) {
+                    // Calculate size of record_store_path
+                    Ok(size) => current_total_used += size,
+                    Err(e) => {
+                        // Log error for specific path, but continue calculation
+                        eprintln!(
+                            "Warning: Failed to calculate size for {:?}: {}. Total size may be inaccurate.",
+                            record_store_path,
+                            e // Log the path we tried to calculate
+                        );
+                    }
                 }
+            } else {
+                // This case should ideally not happen if App::new logic is correct, but log just in case
+                eprintln!(
+                    "Warning: Path from map is not a directory (should not happen): {:?}",
+                    record_store_path
+                );
             }
         }
 
         if calculation_possible {
             self.total_used_storage_bytes = Some(current_total_used);
         } else {
-            self.total_used_storage_bytes = None; // Indicate error occurred
+            self.total_used_storage_bytes = None;
         }
     }
 }

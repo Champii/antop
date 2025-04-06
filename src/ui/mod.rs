@@ -73,7 +73,7 @@ pub async fn run_app<B: Backend>(
                 }
             },
             _ = discover_timer.tick() => {
-                match find_metrics_servers(cli.logs.as_deref()) {
+                match find_metrics_servers(&cli.path) {
                     Ok(mut found_servers) => {
                         // Sort by name, deduplicate by URL (as done in discovery.rs)
                         found_servers.sort_by(|a, b| a.0.cmp(&b.0));

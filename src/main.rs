@@ -19,7 +19,7 @@ use crate::{
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    let initial_servers = match find_metrics_servers(cli.logs.as_deref()) {
+    let initial_servers = match find_metrics_servers(&cli.path) {
         Ok(servers) => {
             if servers.is_empty() {
                 // Log to stderr if no servers found initially
@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
 
     let mut terminal = setup_terminal()?;
 
-    let app = App::new(initial_servers, cli.storage_base_path.clone());
+    let app = App::new(initial_servers, cli.path.clone());
 
     let run_result = run_app(&mut terminal, app, &cli).await;
 
