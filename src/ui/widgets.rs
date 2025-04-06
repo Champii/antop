@@ -217,7 +217,7 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     let in_row_layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Length(4),  // Label "In: "
+            Constraint::Length(5),  // Label "In: "
             Constraint::Length(10), // Total Data (Right aligned)
             Constraint::Min(10),    // Chart (Takes remaining space)
             Constraint::Length(12), // Speed (Right aligned)
