@@ -3,6 +3,7 @@ name = "antop"
 version = "0.1.0"
 edition = "2024"
 license = "MIT"
+description = "A TUI application for monitoring antnode instances. Discovers nodes via log files, fetches Prometheus-style metrics (resource usage, peers, bandwidth, etc.), calculates network speeds, and displays the information in a terminal dashboard with sparklines."
 
 [dependencies]
 tokio = { version = "1", features = ["full"] }
