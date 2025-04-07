@@ -1,18 +1,30 @@
 use anyhow::{Context, Result};
 use glob::glob;
 use regex::Regex;
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+// Add for checking execute permissions on Unix-like systems
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
-/// Finds node root directories matching the provided glob pattern.
+/// Finds node root directories matching the provided glob pattern
+/// that also contain an `antnode.pid` file, indicating a potentially running node.
 pub fn find_node_directories(path_glob: &str) -> Result<Vec<String>> {
     let mut directories = Vec::new();
     for entry in glob(path_glob).context("Failed to read node path glob pattern")? {
         match entry {
             Ok(path) => {
-                // Ensure it's a directory before adding
+                // Ensure it's a directory
                 if path.is_dir() {
-                    // Store the full path as the identifier
-                    directories.push(path.to_string_lossy().to_string());
+                    let antnode_pid_path = path.join("antnode.pid");
+
+                    // Check if `antnode.pid` exists and is a file
+                    if antnode_pid_path.is_file() {
+                        // It's a directory containing the PID file
+                        directories.push(path.to_string_lossy().to_string());
+                    }
                 }
             }
             Err(e) => {
