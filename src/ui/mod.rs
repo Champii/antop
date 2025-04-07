@@ -230,13 +230,13 @@ fn ui(f: &mut Frame, app: &mut App) {
         .split(top_area);
 
     let title = Paragraph::new("Autonomi Node Dashboard")
-        .style(Style::default().fg(Color::White))
+        .style(Style::default().fg(Color::DarkGray))
         .alignment(Alignment::Left);
     f.render_widget(title, top_chunks[0]);
 
     let node_count_text = format!("Nodes: {} / {}", running_nodes_count, total_nodes_count);
     let node_count_widget = Paragraph::new(node_count_text)
-        .style(Style::default().fg(Color::White))
+        .style(Style::default().fg(Color::DarkGray))
         .alignment(Alignment::Right);
     f.render_widget(node_count_widget, top_chunks[1]);
 
@@ -262,7 +262,9 @@ fn ui(f: &mut Frame, app: &mut App) {
             ])
             .split(bottom_area);
 
-        let left_status = Paragraph::new("Press 'q' to quit").alignment(Alignment::Left);
+        let left_status = Paragraph::new("Press 'q' to quit")
+            .style(Style::default().fg(Color::DarkGray))
+            .alignment(Alignment::Left);
 
         let tick_rate_str = format_duration_human(app.tick_rate);
         let right_status_text = format!(
@@ -270,7 +272,9 @@ fn ui(f: &mut Frame, app: &mut App) {
             tick_rate_str,
             app.last_update.elapsed().as_secs()
         );
-        let right_status = Paragraph::new(right_status_text).alignment(Alignment::Right);
+        let right_status = Paragraph::new(right_status_text)
+            .style(Style::default().fg(Color::DarkGray))
+            .alignment(Alignment::Right);
 
         f.render_widget(left_status, status_chunks[0]);
         f.render_widget(right_status, status_chunks[1]);
