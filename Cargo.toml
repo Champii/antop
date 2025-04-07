@@ -1,6 +1,6 @@
 [package]
 name = "antop"
-version = "0.1.7"
+version = "0.2.0"
 edition = "2024"
 license = "MIT"
 description = "A TUI application for monitoring antnode instances. Discovers nodes via log files, fetches metrics (resource usage, peers, bandwidth, etc.), calculates network speeds, and displays the information in a terminal dashboard with sparklines."
@@ -19,6 +19,3 @@ clap = { version = "4.4", features = ["derive"] }
 shellexpand = "3.1"
 humansize = "2.1"
 chrono = { version = "0.4", features = ["serde"] }
-
-[build-dependencies]
-# ... build dependencies ...
