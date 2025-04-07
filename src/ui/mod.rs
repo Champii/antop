@@ -6,7 +6,9 @@ use self::widgets::{render_header, render_node_row};
 use crate::{app::App, cli::Cli, discovery::find_metrics_nodes, fetch::fetch_metrics};
 use anyhow::{Context, Result};
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
+    event::{
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, MouseEvent, MouseEventKind,
+    },
     execute,
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
@@ -108,20 +110,45 @@ pub async fn run_app<B: Backend>(
             },
             // Poll for keyboard events using tokio's spawn_blocking for crossterm event handling
             result = tokio::task::spawn_blocking(|| event::poll(Duration::from_millis(100))) => {
-                 match result {
+                match result {
                     Ok(Ok(true)) => {
-                        if let Event::Key(key) = event::read()? {
-                            if key.code == KeyCode::Char('q') {
-                                return Ok(());
-                            }
-                            if key.code == KeyCode::Up {
-                                app.scroll_offset = app.scroll_offset.saturating_sub(1);
-                            }
-                            if key.code == KeyCode::Down {
-                                let num_nodes = app.nodes.len();
-                                if num_nodes > 0 {
-                                    app.scroll_offset = (app.scroll_offset + 1).min(num_nodes.saturating_sub(1));
+                        // Read the event
+                        if let Ok(event) = event::read() {
+                            match event {
+                                Event::Key(key) => {
+                                    if key.code == KeyCode::Char('q') {
+                                        return Ok(()); // Exit app
+                                    }
+                                    if key.code == KeyCode::Up {
+                                        app.scroll_offset = app.scroll_offset.saturating_sub(1);
+                                    }
+                                    if key.code == KeyCode::Down {
+                                        let num_nodes = app.nodes.len();
+                                        // Prevent scrolling down if there are no nodes or not enough to scroll
+                                        if num_nodes > 0 {
+                                            let max_offset = num_nodes.saturating_sub(1); // Max index is len - 1
+                                            // Calculate potential max offset based on visible rows (later)
+                                            // For now, just ensure offset doesn't exceed max index if scrolling
+                                             app.scroll_offset = (app.scroll_offset + 1).min(max_offset);
+                                        }
+                                    }
                                 }
+                                Event::Mouse(MouseEvent { kind, .. }) => {
+                                    match kind {
+                                        MouseEventKind::ScrollUp => {
+                                            app.scroll_offset = app.scroll_offset.saturating_sub(1);
+                                        }
+                                        MouseEventKind::ScrollDown => {
+                                            let num_nodes = app.nodes.len();
+                                            if num_nodes > 0 {
+                                                let max_offset = num_nodes.saturating_sub(1);
+                                                 app.scroll_offset = (app.scroll_offset + 1).min(max_offset);
+                                            }
+                                        }
+                                        _ => {} // Ignore other mouse events like move, click
+                                    }
+                                }
+                                _ => {} // Ignore other event types
                             }
                         }
                     }
