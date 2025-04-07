@@ -109,12 +109,12 @@ pub fn format_duration_human(duration: std::time::Duration) -> String {
     let secs = duration.as_secs_f64();
 
     if secs < 1.0 {
-        format!("{} ms", duration.as_millis())
+        format!("{}ms", duration.as_millis())
     } else if secs < 60.0 {
-        format!("{:.0} s", secs)
+        format!("{:.0}s", secs)
     } else if secs < 3600.0 {
-        format!("{:.0} min", secs / 60.0)
+        format!("{:.0}min", secs / 60.0)
     } else {
-        format!("{:.0} hr", secs / 3600.0)
+        format!("{:.0}hr", secs / 3600.0)
     }
 }

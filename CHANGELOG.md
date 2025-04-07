@@ -16,12 +16,14 @@ All notable changes to this project will be documented in this file.
 - Finalized header layout: Peers center-left, Network middle (aligned), Recs/Rwds right (aligned).
 - Adjusted the color of the node count display in the UI header for better visibility (now orange).
 - Adjusted the color of key indicators ('q', update values) in the bottom status bar (now orange).
+- Adjusted the color of summary values (Peers, Recs, Rwds) in the header (now orange).
 
 ### Fixed
 - Fix graph total alignment (bfba067, 706747d)
 - Fix warnings (78e5886)
 - Fix chart white line (d6447db)
 - Make Node column expand to fill remaining space (previous edit)
+- Fix spacing and coloring of units in the bottom status bar (numbers orange, units/text gray).
 
 ## [0.2.1] - 2025-04-07
 

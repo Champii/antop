@@ -295,7 +295,8 @@ fn ui(f: &mut Frame, app: &mut App) {
                 elapsed_secs_str,
                 Style::default().fg(Color::Rgb(255, 165, 0)),
             ),
-            Span::styled("s ago | Speed: ", Style::default().fg(Color::DarkGray)),
+            Span::styled("s ago", Style::default().fg(Color::DarkGray)),
+            Span::styled(" | Speed: ", Style::default().fg(Color::DarkGray)),
             Span::styled("+/-", Style::default().fg(Color::Rgb(255, 165, 0))),
         ]);
         let right_status = Paragraph::new(right_status_spans).alignment(Alignment::Right);
