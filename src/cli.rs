@@ -1,5 +1,4 @@
 use clap::Parser;
-use shellexpand;
 
 /// Returns the default path for nodes, expanding the tilde.
 fn default_node_path() -> String {

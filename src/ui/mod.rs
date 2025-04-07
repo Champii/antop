@@ -89,7 +89,7 @@ pub async fn run_app<B: Backend>(
                              // Check if this directory is known and if the URL is new or changed
                             if app.nodes.contains(&dir_path) {
                                 let current_url = app.node_urls.get(&dir_path);
-                                if current_url.map_or(true, |u| u != &url) {
+                                if current_url != Some(&url) {
                                     // New URL or changed URL for a known directory
                                     app.node_urls.insert(dir_path.clone(), url.clone());
                                     // Initialize or re-initialize metrics status

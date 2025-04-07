@@ -7,9 +7,7 @@ mod ui;
 
 use anyhow::{Context, Result};
 use clap::Parser;
-use shellexpand;
 use std::path::PathBuf;
-use tokio;
 
 use crate::{
     app::App,
@@ -45,7 +43,7 @@ async fn main() -> Result<(), anyhow::Error> {
         None => {
             // Derive log path based on the *original* potentially wildcarded path pattern
             let mut path_buf = PathBuf::from(&expanded_path_glob); // Use original glob pattern
-            if path_buf.file_name().map_or(false, |name| name == "*") {
+            if path_buf.file_name().is_some_and(|name| name == "*") {
                 // If the pattern ends with '*', assume it means node-*/logs/antnode.log
                 path_buf.pop(); // Remove '*'
                 path_buf.push("*"); // Add it back (or ensure it's there)

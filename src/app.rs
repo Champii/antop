@@ -78,7 +78,7 @@ impl App {
         _node_path_glob_str: String, // Keep param for signature consistency
     ) -> App {
         // Use the custom comparison function for sorting
-        discovered_node_dirs.sort_by(compare_node_dirs);
+        discovered_node_dirs.sort_by(|a, b| compare_node_dirs(a, b));
 
         let mut node_urls_map = HashMap::new();
         let mut metrics_map = HashMap::new();
@@ -405,7 +405,7 @@ fn extract_prefix_suffix(path_str: &str) -> (String, u64) {
         .and_then(|name| name.to_str())
         .unwrap_or(path_str);
 
-    let numeric_suffix_start = file_name.rfind(|c: char| !c.is_digit(10));
+    let numeric_suffix_start = file_name.rfind(|c: char| !c.is_ascii_digit());
     match numeric_suffix_start {
         Some(index) => {
             let prefix = file_name[..=index].to_string();
@@ -415,7 +415,7 @@ fn extract_prefix_suffix(path_str: &str) -> (String, u64) {
         }
         None => {
             // If the whole filename is numeric
-            if file_name.chars().all(|c| c.is_digit(10)) {
+            if file_name.chars().all(|c| c.is_ascii_digit()) {
                 ("".to_string(), file_name.parse::<u64>().unwrap_or(0))
             } else {
                 // No numeric suffix found, treat the whole thing as prefix
@@ -426,7 +426,7 @@ fn extract_prefix_suffix(path_str: &str) -> (String, u64) {
 }
 
 // Compares two node directory paths naturally.
-fn compare_node_dirs(a: &String, b: &String) -> Ordering {
+fn compare_node_dirs(a: &str, b: &str) -> Ordering {
     let (prefix_a, suffix_a) = extract_prefix_suffix(a);
     let (prefix_b, suffix_b) = extract_prefix_suffix(b);
 
