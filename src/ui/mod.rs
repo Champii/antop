@@ -18,6 +18,7 @@ use ratatui::{
     backend::{Backend, CrosstermBackend},
     layout::{Alignment, Constraint, Direction, Layout, Margin, Rect},
     style::{Color, Style},
+    text::{Line, Span},
     widgets::Paragraph,
 };
 use std::{
@@ -234,10 +235,23 @@ fn ui(f: &mut Frame, app: &mut App) {
         .alignment(Alignment::Left);
     f.render_widget(title, top_chunks[0]);
 
-    let node_count_text = format!("Nodes: {} / {}", running_nodes_count, total_nodes_count);
-    let node_count_widget = Paragraph::new(node_count_text)
-        .style(Style::default().fg(Color::DarkGray))
-        .alignment(Alignment::Right);
+    // Create spans for different parts of the node count text
+    let node_count_spans = Line::from(vec![
+        Span::styled("Nodes: ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            running_nodes_count.to_string(),
+            Style::default().fg(Color::Rgb(255, 165, 0)),
+        ),
+        Span::styled(" / ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            total_nodes_count.to_string(),
+            Style::default().fg(Color::Rgb(255, 165, 0)),
+        ),
+    ]);
+
+    // Create the paragraph with the styled spans
+    let node_count_widget = Paragraph::new(node_count_spans).alignment(Alignment::Right);
+
     f.render_widget(node_count_widget, top_chunks[1]);
 
     // Render summary gauges in the next chunk
@@ -262,19 +276,29 @@ fn ui(f: &mut Frame, app: &mut App) {
             ])
             .split(bottom_area);
 
-        let left_status = Paragraph::new("Press 'q' to quit")
-            .style(Style::default().fg(Color::DarkGray))
-            .alignment(Alignment::Left);
+        // Left status with 'q' highlighted
+        let left_status_spans = Line::from(vec![
+            Span::styled("Press '", Style::default().fg(Color::DarkGray)),
+            Span::styled("q", Style::default().fg(Color::Rgb(255, 165, 0))),
+            Span::styled("' to quit", Style::default().fg(Color::DarkGray)),
+        ]);
+        let left_status = Paragraph::new(left_status_spans).alignment(Alignment::Left);
 
+        // Right status with values highlighted
         let tick_rate_str = format_duration_human(app.tick_rate);
-        let right_status_text = format!(
-            "Update: {} | Last: {}s ago | Speed: +/-",
-            tick_rate_str,
-            app.last_update.elapsed().as_secs()
-        );
-        let right_status = Paragraph::new(right_status_text)
-            .style(Style::default().fg(Color::DarkGray))
-            .alignment(Alignment::Right);
+        let elapsed_secs_str = app.last_update.elapsed().as_secs().to_string();
+        let right_status_spans = Line::from(vec![
+            Span::styled("Update: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(tick_rate_str, Style::default().fg(Color::Rgb(255, 165, 0))),
+            Span::styled(" | Last: ", Style::default().fg(Color::DarkGray)),
+            Span::styled(
+                elapsed_secs_str,
+                Style::default().fg(Color::Rgb(255, 165, 0)),
+            ),
+            Span::styled("s ago | Speed: ", Style::default().fg(Color::DarkGray)),
+            Span::styled("+/-", Style::default().fg(Color::Rgb(255, 165, 0))),
+        ]);
+        let right_status = Paragraph::new(right_status_spans).alignment(Alignment::Right);
 
         f.render_widget(left_status, status_chunks[0]);
         f.render_widget(right_status, status_chunks[1]);

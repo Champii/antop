@@ -14,6 +14,8 @@ All notable changes to this project will be documented in this file.
 - Refactored the TUI header layout for improved alignment and grouping of stats.
 - Rearranged TUI header sections: Network info middle, Recs/Rwds/Peers right.
 - Finalized header layout: Peers center-left, Network middle (aligned), Recs/Rwds right (aligned).
+- Adjusted the color of the node count display in the UI header for better visibility (now orange).
+- Adjusted the color of key indicators ('q', update values) in the bottom status bar (now orange).
 
 ### Fixed
 - Fix graph total alignment (bfba067, 706747d)
