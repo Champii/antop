@@ -20,6 +20,7 @@ pub struct Cli {
     pub path: String,
 
     /// Glob pattern for the log files to scan for metrics server addresses (e.g., "/path/to/nodes/node-*/logs/antnode.log")
-    #[arg(long, default_value_t = default_log_path())]
-    pub log_path: String,
+    /// If not specified, it defaults to the node path appended with "/logs/antnode.log".
+    #[arg(long)]
+    pub log_path: Option<String>,
 }

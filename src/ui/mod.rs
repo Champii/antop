@@ -51,6 +51,7 @@ pub async fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
     mut app: App,
     cli: &Cli,
+    effective_log_path: &str,
 ) -> Result<()> {
     let mut tick_timer = interval(Duration::from_secs(1)); // Refresh data every second
     let mut discover_timer = interval(Duration::from_secs(60)); // Check for new servers every 60s
@@ -73,7 +74,7 @@ pub async fn run_app<B: Backend>(
                 }
             },
             _ = discover_timer.tick() => {
-                match find_metrics_servers(&cli.log_path) {
+                match find_metrics_servers(effective_log_path) {
                     Ok(mut found_servers) => {
                         // Sort by name, deduplicate by URL (as done in discovery.rs)
                         found_servers.sort_by(|a, b| a.0.cmp(&b.0));
