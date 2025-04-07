@@ -4,10 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.1] - 2025-04-07
+
 ### Fixed
 - Fix graph total alignment (bfba067, 706747d)
 - Fix warnings (78e5886)
 - Fix chart white line (d6447db)
+- Make Node column expand to fill remaining space (previous edit)
 
 ## [0.2.0] - 2025-04-07
 
