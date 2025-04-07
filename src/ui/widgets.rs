@@ -298,13 +298,15 @@ fn create_summary_chart<'a>(
             Axis::default()
                 .style(Style::default().fg(Color::DarkGray))
                 .bounds(x_bounds)
-                .labels::<Vec<Line<'_>>>(vec![]),
+                .labels(vec![])
+                .style(Style::default().fg(Color::DarkGray)),
         )
         .y_axis(
             Axis::default()
                 .style(Style::default().fg(Color::DarkGray))
                 .bounds(y_bounds)
-                .labels::<Vec<Line<'_>>>(vec![]),
+                .labels(vec![])
+                .style(Style::default().fg(Color::DarkGray)),
         );
 
     Some(chart)

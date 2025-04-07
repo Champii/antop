@@ -1,10 +1,11 @@
 use crate::metrics::{NodeMetrics, parse_metrics};
 use glob::glob;
 use std::{
+    cmp::Ordering, // Add Ordering
     collections::{HashMap, VecDeque},
     fs,                        // Add fs for directory sizing
     io,                        // Add io for error handling
-    path::PathBuf,             // Add PathBuf
+    path::{Path, PathBuf},     // Add Path
     time::{Duration, Instant}, // Import Duration
 };
 
@@ -76,10 +77,13 @@ impl App {
     /// `initial_node_urls`: List of (directory_path, metrics_url) found initially from logs.
     /// `_node_path_glob_str`: Original glob pattern string (currently unused here but kept for potential future use).
     pub fn new(
-        discovered_node_dirs: Vec<String>,
+        mut discovered_node_dirs: Vec<String>,
         initial_node_urls: Vec<(String, String)>,
         _node_path_glob_str: String, // Keep param for signature consistency
     ) -> App {
+        // Use the custom comparison function for sorting
+        discovered_node_dirs.sort_by(compare_node_dirs);
+
         let mut node_urls_map = HashMap::new();
         let mut metrics_map = HashMap::new();
         let now = Instant::now();
@@ -111,7 +115,7 @@ impl App {
         }
 
         App {
-            nodes: discovered_node_dirs, // Store all discovered directory paths
+            nodes: discovered_node_dirs, // Store the naturally sorted list
             node_urls: node_urls_map,    // Store mapping for nodes with found URLs
             node_metrics: metrics_map,   // Initialize metrics only for those with URLs
             previous_metrics: HashMap::new(),
@@ -394,4 +398,44 @@ fn calculate_dir_size(path: &PathBuf) -> io::Result<u64> {
     }
 
     Ok(total_size)
+}
+
+// --- Helper for Natural Sorting Node Directories ---
+
+// Extracts the non-numeric prefix and the numeric suffix from a path's filename.
+fn extract_prefix_suffix(path_str: &str) -> (String, u64) {
+    let file_name = Path::new(path_str)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(path_str);
+
+    let numeric_suffix_start = file_name.rfind(|c: char| !c.is_digit(10));
+    match numeric_suffix_start {
+        Some(index) => {
+            let prefix = file_name[..=index].to_string();
+            let suffix_str = &file_name[index + 1..];
+            let suffix_num = suffix_str.parse::<u64>().unwrap_or(0); // Default to 0 if no suffix or parse fails
+            (prefix, suffix_num)
+        }
+        None => {
+            // If the whole filename is numeric
+            if file_name.chars().all(|c| c.is_digit(10)) {
+                ("".to_string(), file_name.parse::<u64>().unwrap_or(0))
+            } else {
+                // No numeric suffix found, treat the whole thing as prefix
+                (file_name.to_string(), 0)
+            }
+        }
+    }
+}
+
+// Compares two node directory paths naturally.
+fn compare_node_dirs(a: &String, b: &String) -> Ordering {
+    let (prefix_a, suffix_a) = extract_prefix_suffix(a);
+    let (prefix_b, suffix_b) = extract_prefix_suffix(b);
+
+    // Compare prefixes first, then suffixes
+    prefix_a
+        .cmp(&prefix_b)
+        .then_with(|| suffix_a.cmp(&suffix_b))
 }

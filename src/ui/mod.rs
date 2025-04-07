@@ -206,7 +206,7 @@ fn ui(f: &mut Frame, app: &mut App) {
             ]
             .as_ref(),
         )
-        .split(f.area());
+        .split(f.size());
 
     // --- Top Bar (Title + Node Count) ---
     let top_area = main_chunks[0];
@@ -273,7 +273,7 @@ fn ui(f: &mut Frame, app: &mut App) {
 /// Delegates rendering the header and individual rows to helper functions.
 // This function is also internal to the ui module, called by ui
 fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
-    let inner_area = area.inner(Margin {
+    let inner_area = area.inner(&Margin {
         vertical: 1,
         horizontal: 1,
     });
