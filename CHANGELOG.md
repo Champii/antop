@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Cpu color (1d0b97b)
+
+### Changed
+- Layout adjustments (9e66a36)
+
 ## [0.2.1] - 2025-04-07
 
 ### Fixed
