@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Layout adjustments (9e66a36)
 - Adjust top/bottom bar text color
 - Improved alignment and spacing in summary header and node table rows.
+- Refactored the TUI header layout for improved alignment and grouping of stats.
 
 ## [0.2.1] - 2025-04-07
 

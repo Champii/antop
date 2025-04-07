@@ -60,25 +60,21 @@ pub fn get_cpu_color(percentage: f64) -> Color {
 
 /// Renders the summary section with gauges for CPU and Storage.
 pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
-    // Outer layout: Gauges | Spacer | Bandwidth | Spacer | Recs/Rwds | Spacer | Peers | Spacer
-    // CORRECTED Outer layout: Gauges | Spacer | Recs/Rwds | Spacer | Peers | Spacer | Bandwidth (Expands)
+    // Outer layout: Gauges | Spacer | Recs/Rwds/Peers | Spacer | Bandwidth (Expands)
     let outer_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(20), // 0: Gauges
+            Constraint::Percentage(20), // 0: Gauges (CPU/Storage)
             Constraint::Length(2),      // 1: Spacer
-            Constraint::Percentage(12), // 2: Recs/Rwds (Was Bandwidth)
+            Constraint::Percentage(20), // 2: Recs/Rwds/Peers (Combined)
             Constraint::Length(2),      // 3: Spacer
-            Constraint::Percentage(10), // 4: Peers (Was Recs/Rwds)
-            Constraint::Length(2),      // 5: Spacer
-            Constraint::Min(27),        // 6: Bandwidth (Moved to end, takes remaining space)
+            Constraint::Min(27),        // 4: Bandwidth (Takes remaining space)
         ])
         .split(area);
 
     let gauges_area = outer_chunks[0];
-    let recs_rwds_col_area = outer_chunks[2];
-    let peers_col_area = outer_chunks[4];
-    let bandwidth_area = outer_chunks[6];
+    let combined_stats_area = outer_chunks[2];
+    let bandwidth_area = outer_chunks[4]; // Index updated
 
     // Inner layout: Stack gauges vertically within the gauges_area
     let gauge_chunks = Layout::default()
@@ -146,6 +142,62 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
         .ratio(storage_ratio)
         .label(storage_label);
     f.render_widget(storage_gauge, gauge_chunks[1]);
+
+    // --- Combined Recs/Rwds/Peers Area ---
+    let inner_stats_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Ratio(2, 3), // Recs/Rwds take 2/3
+            Constraint::Ratio(1, 3), // Peers take 1/3
+        ])
+        .split(combined_stats_area);
+
+    let recs_rwds_area = inner_stats_chunks[0];
+    let peers_area = inner_stats_chunks[1];
+
+    // --- Recs/Rwds Column Rendering (within combined area) ---
+    let recs_rwds_layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([Constraint::Length(1), Constraint::Length(1)])
+        .split(recs_rwds_area);
+
+    let recs_text = Line::from(vec![
+        Span::styled("Recs: ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            format!("{}", app.summary_total_records),
+            Style::default().fg(Color::White),
+        ),
+    ]);
+    let rwds_text = Line::from(vec![
+        Span::styled("Rwds: ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            format!("{}", app.summary_total_rewards),
+            Style::default().fg(Color::Yellow),
+        ),
+    ]);
+
+    f.render_widget(
+        Paragraph::new(recs_text).alignment(Alignment::Left),
+        recs_rwds_layout[0],
+    );
+    f.render_widget(
+        Paragraph::new(rwds_text).alignment(Alignment::Left),
+        recs_rwds_layout[1],
+    );
+
+    // --- Peers Column Rendering (within combined area) ---
+    let peers_text = Line::from(vec![
+        Span::styled("Peers: ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            format!("{}", app.summary_total_live_peers),
+            Style::default().fg(Color::Blue),
+        ),
+    ]);
+
+    f.render_widget(
+        Paragraph::new(peers_text).alignment(Alignment::Left),
+        peers_area, // Render directly into the peers_area
+    );
 
     // --- Bandwidth Area ---
     let formatted_data_in = format_option_u64_bytes(Some(app.summary_total_data_in_bytes));
@@ -249,50 +301,6 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
         .style(Style::default().fg(Color::Magenta))
         .alignment(Alignment::Right);
     f.render_widget(out_speed_para, out_row_layout[5]);
-
-    // --- Recs/Rwds Column Rendering ---
-    let recs_rwds_col_layout = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([Constraint::Length(1), Constraint::Length(1)])
-        .split(recs_rwds_col_area);
-
-    let recs_text = Line::from(vec![
-        Span::styled("Recs: ", Style::default().fg(Color::DarkGray)),
-        Span::styled(
-            format!("{}", app.summary_total_records),
-            Style::default().fg(Color::White),
-        ),
-    ]);
-    let rwds_text = Line::from(vec![
-        Span::styled("Rwds: ", Style::default().fg(Color::DarkGray)),
-        Span::styled(
-            format!("{}", app.summary_total_rewards),
-            Style::default().fg(Color::Yellow),
-        ),
-    ]);
-
-    f.render_widget(
-        Paragraph::new(recs_text).alignment(Alignment::Left),
-        recs_rwds_col_layout[0],
-    );
-    f.render_widget(
-        Paragraph::new(rwds_text).alignment(Alignment::Left),
-        recs_rwds_col_layout[1],
-    );
-
-    // --- Peers Column Rendering ---
-    let peers_text = Line::from(vec![
-        Span::styled("Peers: ", Style::default().fg(Color::DarkGray)),
-        Span::styled(
-            format!("{}", app.summary_total_live_peers),
-            Style::default().fg(Color::Blue),
-        ),
-    ]);
-
-    f.render_widget(
-        Paragraph::new(peers_text).alignment(Alignment::Left),
-        peers_col_area,
-    );
 }
 
 // Helper function to create summary charts consistently
