@@ -8,7 +8,7 @@ use ratatui::{
     style::{Color, Style},
     symbols,
     text::{Line, Span},
-    widgets::{Axis, Block, Borders, Chart, Dataset, Gauge, GraphType, Paragraph},
+    widgets::{Axis, Chart, Dataset, Gauge, GraphType, Paragraph},
 };
 
 // --- Constants ---
