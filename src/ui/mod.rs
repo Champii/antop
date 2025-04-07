@@ -21,7 +21,7 @@ use ratatui::{
 };
 use std::{
     io::{self, Stdout},
-    time::Duration,
+    time::{Duration, Instant},
 };
 use tokio::time::interval;
 
@@ -54,28 +54,30 @@ pub async fn run_app<B: Backend>(
     _cli: &Cli,
     effective_log_path: &str,
 ) -> Result<()> {
-    let mut tick_timer = interval(Duration::from_secs(1)); // Refresh data every second
     let mut discover_timer = interval(Duration::from_secs(60)); // Check for new node URLs every 60s
+    let mut last_tick = Instant::now(); // Track the last metrics update time
 
     // Initial metrics fetch for nodes that had URLs at startup
     if !app.node_urls.is_empty() {
         let urls: Vec<String> = app.node_urls.values().cloned().collect();
         let initial_results = fetch_metrics(&urls).await;
         app.update_metrics(initial_results);
+        last_tick = Instant::now(); // Reset last_tick after initial fetch
     }
 
     loop {
         terminal.draw(|f| ui(f, &mut app))?;
 
+        // Calculate time until next tick to potentially sleep or adjust poll timeout
+        let now = Instant::now();
+        let elapsed_since_last_tick = now.duration_since(last_tick);
+        let time_until_next_tick = app.tick_rate.saturating_sub(elapsed_since_last_tick);
+
+        // Poll for events with a timeout. Use a small fixed timeout for responsiveness,
+        // or the time until the next tick, whichever is smaller.
+        let poll_timeout = time_until_next_tick.min(Duration::from_millis(50)); // Max 50ms wait for input
+
         tokio::select! {
-            _ = tick_timer.tick() => {
-                 // Fetch metrics only for nodes with known URLs
-                if !app.node_urls.is_empty() {
-                    let urls: Vec<String> = app.node_urls.values().cloned().collect();
-                    let results = fetch_metrics(&urls).await;
-                    app.update_metrics(results);
-                }
-            },
             _ = discover_timer.tick() => {
                 let log_path_buf = std::path::PathBuf::from(effective_log_path);
                 match find_metrics_nodes(log_path_buf).await {
@@ -108,29 +110,35 @@ pub async fn run_app<B: Backend>(
                     }
                 }
             },
-            // Poll for keyboard events using tokio's spawn_blocking for crossterm event handling
-            result = tokio::task::spawn_blocking(|| event::poll(Duration::from_millis(100))) => {
+            // Poll for keyboard/mouse events
+            result = tokio::task::spawn_blocking(move || event::poll(poll_timeout)) => { // Use calculated poll_timeout
                 match result {
                     Ok(Ok(true)) => {
                         // Read the event
                         if let Ok(event) = event::read() {
                             match event {
                                 Event::Key(key) => {
-                                    if key.code == KeyCode::Char('q') {
-                                        return Ok(()); // Exit app
-                                    }
-                                    if key.code == KeyCode::Up {
-                                        app.scroll_offset = app.scroll_offset.saturating_sub(1);
-                                    }
-                                    if key.code == KeyCode::Down {
-                                        let num_nodes = app.nodes.len();
-                                        // Prevent scrolling down if there are no nodes or not enough to scroll
-                                        if num_nodes > 0 {
-                                            let max_offset = num_nodes.saturating_sub(1); // Max index is len - 1
-                                            // Calculate potential max offset based on visible rows (later)
-                                            // For now, just ensure offset doesn't exceed max index if scrolling
-                                             app.scroll_offset = (app.scroll_offset + 1).min(max_offset);
+                                    match key.code {
+                                        KeyCode::Char('q') => return Ok(()), // Exit app
+                                        KeyCode::Up => {
+                                            app.scroll_offset = app.scroll_offset.saturating_sub(1);
                                         }
+                                        KeyCode::Down => {
+                                            let num_nodes = app.nodes.len();
+                                            if num_nodes > 0 {
+                                                let max_offset = num_nodes.saturating_sub(1);
+                                                 app.scroll_offset = (app.scroll_offset + 1).min(max_offset);
+                                            }
+                                        }
+                                        KeyCode::Char('+') | KeyCode::Char('=') => { // Also handle '=' which is often shift+'+'
+                                            app.adjust_tick_rate(true); // Increase interval (slower)
+                                            // No need to reset timer, logic below handles it
+                                        }
+                                         KeyCode::Char('-') => {
+                                            app.adjust_tick_rate(false); // Decrease interval (faster)
+                                            // No need to reset timer, logic below handles it
+                                        }
+                                        _ => {} // Ignore other keys
                                     }
                                 }
                                 Event::Mouse(MouseEvent { kind, .. }) => {
@@ -152,7 +160,7 @@ pub async fn run_app<B: Backend>(
                             }
                         }
                     }
-                    Ok(Ok(false)) => {}
+                    Ok(Ok(false)) => {} // Timeout elapsed without event
                     Ok(Err(e)) => {
                         app.status_message = Some(format!("Input polling error: {}", e));
                     }
@@ -160,7 +168,23 @@ pub async fn run_app<B: Backend>(
                          app.status_message = Some(format!("Input task spawn error: {}", e));
                     }
                 }
+            },
+            // Use a small sleep if there's significant time until the next tick and no event occurred
+            _ = tokio::time::sleep(poll_timeout), if !poll_timeout.is_zero() => {
+                // This branch ensures the loop doesn't spin wildly if poll_timeout is very small
+                // but it's not yet time for the next tick.
             }
+        }
+
+        // Check if it's time for the next tick AFTER handling events/sleep
+        if Instant::now().duration_since(last_tick) >= app.tick_rate {
+            // Fetch metrics only for nodes with known URLs
+            if !app.node_urls.is_empty() {
+                let urls: Vec<String> = app.node_urls.values().cloned().collect();
+                let results = fetch_metrics(&urls).await;
+                app.update_metrics(results);
+            }
+            last_tick = Instant::now(); // Update last tick time
         }
     }
 }
@@ -196,8 +220,10 @@ fn ui(f: &mut Frame, app: &mut App) {
     let status_content = if let Some(msg) = &app.status_message {
         Paragraph::new(msg.clone()).style(Style::default().fg(Color::Red)) // Style errors in Red
     } else {
+        let tick_rate_secs = app.tick_rate.as_secs_f64();
         let default_status = format!(
-            "Last update: {}s ago | {} nodes | Press 'q' to quit",
+            "Update every: {:.1}s | Last update: {}s ago | {} nodes | Press 'q' to quit, +/- to change speed",
+            tick_rate_secs,
             app.last_update.elapsed().as_secs(),
             app.nodes.len()
         );

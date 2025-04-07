@@ -2,16 +2,19 @@ use crate::metrics::{NodeMetrics, parse_metrics};
 use glob::glob;
 use std::{
     collections::{HashMap, VecDeque},
-    fs,            // Add fs for directory sizing
-    io,            // Add io for error handling
-    path::PathBuf, // Add PathBuf
-    time::Instant,
+    fs,                        // Add fs for directory sizing
+    io,                        // Add io for error handling
+    path::PathBuf,             // Add PathBuf
+    time::{Duration, Instant}, // Import Duration
 };
 
 // Number of data points to keep for sparklines
 pub const SPARKLINE_HISTORY_LENGTH: usize = 60;
 // Storage per node in bytes (35 GB)
 pub const STORAGE_PER_NODE_BYTES: u64 = 35 * 1_000_000_000;
+// Tick rate bounds
+const MIN_TICK_RATE: Duration = Duration::from_millis(100);
+const MAX_TICK_RATE: Duration = Duration::from_secs(3600); // 1 hour
 
 /// Holds the application state.
 pub struct App {
@@ -47,6 +50,7 @@ pub struct App {
     // --- UI State & Config ---
     pub status_message: Option<String>,
     pub scroll_offset: usize, // Track the scroll position for the node list
+    pub tick_rate: Duration,  // Current update interval
 }
 
 impl App {
@@ -114,6 +118,7 @@ impl App {
             node_record_store_paths, // Use the map populated above
             status_message: None,
             scroll_offset: 0,
+            tick_rate: Duration::from_secs(1), // Default tick rate
         }
     }
 
@@ -296,6 +301,29 @@ impl App {
             self.total_used_storage_bytes = Some(current_total_used);
         } else {
             self.total_used_storage_bytes = None;
+        }
+    }
+
+    /// Adjusts the application's tick rate (update interval).
+    /// `increase`: true to increase interval (slower updates), false to decrease (faster updates).
+    pub fn adjust_tick_rate(&mut self, increase: bool) {
+        let current_millis = self.tick_rate.as_millis() as f64;
+        let new_millis = if increase {
+            (current_millis * 1.5).min(MAX_TICK_RATE.as_millis() as f64) // Increase by 50%
+        } else {
+            (current_millis / 1.5).max(MIN_TICK_RATE.as_millis() as f64) // Decrease by ~33%
+        };
+
+        // Ensure we don't go below the absolute minimum if division results in a very small number
+        let final_millis = new_millis.max(MIN_TICK_RATE.as_millis() as f64);
+
+        self.tick_rate = Duration::from_millis(final_millis as u64);
+
+        // Ensure the final duration is clamped correctly (redundant safety check)
+        if self.tick_rate < MIN_TICK_RATE {
+            self.tick_rate = MIN_TICK_RATE;
+        } else if self.tick_rate > MAX_TICK_RATE {
+            self.tick_rate = MAX_TICK_RATE;
         }
     }
 }
