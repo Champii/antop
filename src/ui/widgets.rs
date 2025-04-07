@@ -21,20 +21,36 @@ const HEADER_TITLES: [&str; 9] = [
 const HEADER_STYLE: Style = Style::new().fg(Color::Yellow);
 const DATA_CELL_STYLE: Style = Style::new().fg(Color::Gray);
 
-pub const COLUMN_CONSTRAINTS: [Constraint; 12] = [
+// Add spacer constraint for clarity
+const SPACER: Constraint = Constraint::Length(1);
+
+// Adjusted constraints with spacers. Total columns: 9 data + 3 complex + 11 spacers = 23
+pub const COLUMN_CONSTRAINTS: [Constraint; 23] = [
     Constraint::Ratio(1, 18), // 0: Node
-    Constraint::Ratio(1, 18), // 1: Uptime
-    Constraint::Ratio(1, 18), // 2: Mem MB
-    Constraint::Ratio(1, 18), // 3: CPU %
-    Constraint::Ratio(1, 18), // 4: Peers (Live)
-    Constraint::Ratio(1, 18), // 5: Routing
-    Constraint::Ratio(1, 18), // 6: Records (was 8)
-    Constraint::Ratio(1, 18), // 7: Reward (was 9)
-    Constraint::Ratio(1, 18), // 8: Err (was 10)
-    Constraint::Ratio(4, 18), // 9: Rx Chart Area (was 11)
-    Constraint::Ratio(4, 18), // 10: Tx Chart Area (was 12)
-    Constraint::Ratio(1, 18), // 11: Status (was 13)
-]; // Ratios adjusted to sum to 1 (9*1 + 2*4 + 1*1 = 18)
+    SPACER,                   // 1
+    Constraint::Ratio(1, 18), // 2: Uptime
+    SPACER,                   // 3
+    Constraint::Ratio(1, 18), // 4: Mem MB
+    SPACER,                   // 5
+    Constraint::Ratio(1, 18), // 6: CPU %
+    SPACER,                   // 7
+    Constraint::Ratio(1, 18), // 8: Peers (Live)
+    SPACER,                   // 9
+    Constraint::Ratio(1, 18), // 10: Routing
+    SPACER,                   // 11
+    Constraint::Ratio(1, 18), // 12: Records
+    SPACER,                   // 13
+    Constraint::Ratio(1, 18), // 14: Reward
+    SPACER,                   // 15
+    Constraint::Ratio(1, 18), // 16: Err
+    SPACER,                   // 17
+    Constraint::Ratio(4, 18), // 18: Rx Chart Area
+    SPACER,                   // 19
+    Constraint::Ratio(4, 18), // 20: Tx Chart Area
+    SPACER,                   // 21
+    Constraint::Ratio(1, 18), // 22: Status
+];
+// Note: Ratios still sum based on the original 18 parts, spacers take fixed width first.
 
 // --- NEW: Summary Gauges ---
 
@@ -313,17 +329,18 @@ fn create_summary_chart<'a>(
 pub fn render_header(f: &mut Frame, area: Rect) {
     let header_column_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints(COLUMN_CONSTRAINTS)
+        .constraints(COLUMN_CONSTRAINTS) // Use the updated constraints
         .split(area);
 
+    // Iterate through original titles and place them in the correct (even) indices
     for (i, title) in HEADER_TITLES.iter().enumerate() {
-        let chunk_index = i;
+        let chunk_index = i * 2; // Titles are now at indices 0, 2, 4, ...
 
         if chunk_index < header_column_chunks.len() {
             let alignment = if i == 0 {
-                Alignment::Left
+                Alignment::Left // Node title left-aligned
             } else {
-                Alignment::Right
+                Alignment::Right // Other titles right-aligned
             };
             let title_paragraph = Paragraph::new(*title)
                 .style(HEADER_STYLE)
@@ -332,27 +349,38 @@ pub fn render_header(f: &mut Frame, area: Rect) {
         }
     }
 
-    let rx_title_paragraph = Paragraph::new("Rx")
-        .style(HEADER_STYLE)
-        .alignment(Alignment::Center);
-    f.render_widget(rx_title_paragraph, header_column_chunks[9]);
+    // Explicitly place Rx, Tx, and Status titles in their new indices
+    let rx_index = 18;
+    let tx_index = 20;
+    let status_index = 22;
 
-    let tx_title_paragraph = Paragraph::new("Tx")
-        .style(HEADER_STYLE)
-        .alignment(Alignment::Center);
-    f.render_widget(tx_title_paragraph, header_column_chunks[10]);
+    if rx_index < header_column_chunks.len() {
+        let rx_title_paragraph = Paragraph::new("Rx")
+            .style(HEADER_STYLE)
+            .alignment(Alignment::Center);
+        f.render_widget(rx_title_paragraph, header_column_chunks[rx_index]);
+    }
 
-    let status_title_paragraph = Paragraph::new("Status")
-        .style(HEADER_STYLE)
-        .alignment(Alignment::Right);
-    f.render_widget(status_title_paragraph, header_column_chunks[11]);
+    if tx_index < header_column_chunks.len() {
+        let tx_title_paragraph = Paragraph::new("Tx")
+            .style(HEADER_STYLE)
+            .alignment(Alignment::Center);
+        f.render_widget(tx_title_paragraph, header_column_chunks[tx_index]);
+    }
+
+    if status_index < header_column_chunks.len() {
+        let status_title_paragraph = Paragraph::new("Status")
+            .style(HEADER_STYLE)
+            .alignment(Alignment::Right);
+        f.render_widget(status_title_paragraph, header_column_chunks[status_index]);
+    }
 }
 
 /// Renders a single node's data row, including text cells and bandwidth charts.
 pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, root_path: &str, url: &str) {
     let column_layout = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints(COLUMN_CONSTRAINTS)
+        .constraints(COLUMN_CONSTRAINTS) // Uses the updated constraints with spacers
         .split(area);
 
     // Fetch metrics for this specific node using the URL
@@ -377,28 +405,33 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, root_path: &str, ur
         ),
     };
 
+    // Place data cells in the correct (even) indices
     for (i, cell_content) in cells.iter().enumerate() {
-        let chunk_index = i;
+        let chunk_index = i * 2; // Data cells are at indices 0, 2, 4, ... 16
 
-        let alignment = if i == 0 {
-            Alignment::Left
-        } else {
-            Alignment::Right
-        };
-        let cell_paragraph = Paragraph::new(cell_content.clone())
-            .style(DATA_CELL_STYLE)
-            .alignment(alignment);
-        f.render_widget(cell_paragraph, column_layout[chunk_index]);
+        if chunk_index < column_layout.len() {
+            let alignment = if i == 0 {
+                Alignment::Left
+            } else {
+                Alignment::Right
+            };
+            let cell_paragraph = Paragraph::new(cell_content.clone())
+                .style(DATA_CELL_STYLE)
+                .alignment(alignment);
+            f.render_widget(cell_paragraph, column_layout[chunk_index]);
+        }
     }
 
-    // Use the determined status_text and status_style
-    let status_paragraph = Paragraph::new(status_text)
-        .style(status_style)
-        .alignment(Alignment::Right);
-    f.render_widget(status_paragraph, column_layout[11]);
+    // Place status in the correct index
+    let status_index = 22;
+    if status_index < column_layout.len() {
+        let status_paragraph = Paragraph::new(status_text)
+            .style(status_style)
+            .alignment(Alignment::Right);
+        f.render_widget(status_paragraph, column_layout[status_index]);
+    }
 
-    // --- Render Rx/Tx Columns ---
-
+    // --- Render Rx/Tx Columns --- Get data first ---
     let (
         chart_data_in,
         chart_data_out,
@@ -425,77 +458,81 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, root_path: &str, ur
     let formatted_speed_in = format_speed_bps(speed_in_bps);
     let formatted_speed_out = format_speed_bps(speed_out_bps);
 
-    // --- Rx Column Rendering ---
-    let rx_col_layout = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Length(8),
-            Constraint::Min(1),
-            Constraint::Length(10),
-        ])
-        .split(column_layout[9]);
+    // --- Rx Column Rendering (Index 18) ---
+    let rx_col_index = 18;
+    if rx_col_index < column_layout.len() {
+        let rx_col_layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(8),  // Total Bytes
+                Constraint::Min(1),     // Chart
+                Constraint::Length(10), // Speed
+            ])
+            .split(column_layout[rx_col_index]); // Use the correct chunk
 
-    let total_in_para = Paragraph::new(formatted_total_in)
-        .style(Style::default().fg(Color::Cyan))
-        .alignment(Alignment::Right);
-    f.render_widget(total_in_para, rx_col_layout[0]);
+        let total_in_para = Paragraph::new(formatted_total_in)
+            .style(Style::default().fg(Color::Cyan))
+            .alignment(Alignment::Right);
+        f.render_widget(total_in_para, rx_col_layout[0]);
 
-    if let Some(data) = chart_data_in {
-        if let Some(chart) = create_summary_chart(data, Color::Cyan, "Rx") {
-            f.render_widget(chart, rx_col_layout[1]);
+        if let Some(data) = chart_data_in {
+            if let Some(chart) = create_summary_chart(data, Color::Cyan, "Rx") {
+                f.render_widget(chart, rx_col_layout[1]);
+            } else {
+                let placeholder = Paragraph::new("-")
+                    .style(DATA_CELL_STYLE)
+                    .alignment(Alignment::Center);
+                f.render_widget(placeholder, rx_col_layout[1]);
+            }
         } else {
-            // Handle case where create_summary_chart returns None (e.g., < 2 data points)
             let placeholder = Paragraph::new("-")
                 .style(DATA_CELL_STYLE)
                 .alignment(Alignment::Center);
             f.render_widget(placeholder, rx_col_layout[1]);
         }
-    } else {
-        // Handle case where chart_data_in itself is None
-        let placeholder = Paragraph::new("-")
-            .style(DATA_CELL_STYLE)
-            .alignment(Alignment::Center);
-        f.render_widget(placeholder, rx_col_layout[1]);
+
+        let speed_in_para = Paragraph::new(formatted_speed_in)
+            .style(Style::default().fg(Color::Cyan))
+            .alignment(Alignment::Right);
+        f.render_widget(speed_in_para, rx_col_layout[2]);
     }
 
-    let speed_in_para = Paragraph::new(formatted_speed_in)
-        .style(Style::default().fg(Color::Cyan))
-        .alignment(Alignment::Right);
-    f.render_widget(speed_in_para, rx_col_layout[2]);
+    // --- Tx Column Rendering (Index 20) ---
+    let tx_col_index = 20;
+    if tx_col_index < column_layout.len() {
+        let tx_col_layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Length(8),  // Total Bytes
+                Constraint::Min(1),     // Chart
+                Constraint::Length(10), // Speed
+            ])
+            .split(column_layout[tx_col_index]); // Use the correct chunk
 
-    // --- Tx Column Rendering ---
-    let tx_col_layout = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints([
-            Constraint::Length(8),
-            Constraint::Min(1),
-            Constraint::Length(10),
-        ])
-        .split(column_layout[10]);
+        let total_out_para = Paragraph::new(formatted_total_out)
+            .style(Style::default().fg(Color::Magenta))
+            .alignment(Alignment::Right);
+        f.render_widget(total_out_para, tx_col_layout[0]);
 
-    let total_out_para = Paragraph::new(formatted_total_out)
-        .style(Style::default().fg(Color::Magenta))
-        .alignment(Alignment::Right);
-    f.render_widget(total_out_para, tx_col_layout[0]);
-
-    if let Some(data) = chart_data_out {
-        if let Some(chart) = create_summary_chart(data, Color::Magenta, "Tx") {
-            f.render_widget(chart, tx_col_layout[1]);
+        if let Some(data) = chart_data_out {
+            if let Some(chart) = create_summary_chart(data, Color::Magenta, "Tx") {
+                f.render_widget(chart, tx_col_layout[1]);
+            } else {
+                let placeholder = Paragraph::new("-")
+                    .style(DATA_CELL_STYLE)
+                    .alignment(Alignment::Center);
+                f.render_widget(placeholder, tx_col_layout[1]);
+            }
         } else {
             let placeholder = Paragraph::new("-")
                 .style(DATA_CELL_STYLE)
                 .alignment(Alignment::Center);
             f.render_widget(placeholder, tx_col_layout[1]);
         }
-    } else {
-        let placeholder = Paragraph::new("-")
-            .style(DATA_CELL_STYLE)
-            .alignment(Alignment::Center);
-        f.render_widget(placeholder, tx_col_layout[1]);
-    }
 
-    let speed_out_para = Paragraph::new(formatted_speed_out)
-        .style(Style::default().fg(Color::Magenta))
-        .alignment(Alignment::Right);
-    f.render_widget(speed_out_para, tx_col_layout[2]);
+        let speed_out_para = Paragraph::new(formatted_speed_out)
+            .style(Style::default().fg(Color::Magenta))
+            .alignment(Alignment::Right);
+        f.render_widget(speed_out_para, tx_col_layout[2]);
+    }
 }
