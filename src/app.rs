@@ -40,6 +40,7 @@ pub struct App {
     // Config & Discovered Paths
     pub node_record_store_paths: HashMap<String, PathBuf>, // Map node name to its RECORD STORE path
     pub status_message: Option<String>, // For displaying messages/errors in the footer
+    pub scroll_offset: usize,           // NEW: Track the scroll position for the node list
 }
 
 impl App {
@@ -107,6 +108,7 @@ impl App {
             // Store config & discovered paths
             node_record_store_paths,
             status_message: None, // Initialize status message
+            scroll_offset: 0,     // Initialize scroll offset
         }
     }
 

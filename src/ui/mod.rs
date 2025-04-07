@@ -104,6 +104,15 @@ pub async fn run_app<B: Backend>(
                             if key.code == KeyCode::Char('q') {
                                 return Ok(());
                             }
+                            if key.code == KeyCode::Up {
+                                app.scroll_offset = app.scroll_offset.saturating_sub(1);
+                            }
+                            if key.code == KeyCode::Down {
+                                let num_nodes = app.nodes.len();
+                                if num_nodes > 0 {
+                                    app.scroll_offset = (app.scroll_offset + 1).min(num_nodes.saturating_sub(1));
+                                }
+                            }
                         }
                     }
                     Ok(Ok(false)) => {}
@@ -183,8 +192,27 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
         return;
     }
 
-    let mut constraints = vec![Constraint::Length(1)];
-    constraints.extend(std::iter::repeat_n(Constraint::Length(1), num_nodes));
+    // Calculate available height for node rows (excluding header)
+    let header_height = 1;
+    let available_height = inner_area.height.saturating_sub(header_height);
+    let num_visible_rows = available_height as usize;
+
+    // Adjust scroll offset if it's too large for the current number of nodes/visible rows
+    if num_nodes > num_visible_rows {
+        app.scroll_offset = app
+            .scroll_offset
+            .min(num_nodes.saturating_sub(num_visible_rows));
+    } else {
+        // If all nodes fit, reset scroll offset
+        app.scroll_offset = 0;
+    }
+
+    // Define layout constraints: 1 for header, then 1 for each VISIBLE row
+    let mut constraints = vec![Constraint::Length(header_height)];
+    constraints.extend(std::iter::repeat_n(
+        Constraint::Length(1),
+        num_visible_rows.min(num_nodes), // Don't create more constraints than nodes
+    ));
 
     let vertical_chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -193,11 +221,19 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
 
     render_header(f, vertical_chunks[0]);
 
-    for (i, (name, url)) in app.nodes.iter().enumerate() {
-        if i + 1 >= vertical_chunks.len() {
-            continue;
+    // Determine the range of nodes to display
+    let start_index = app.scroll_offset;
+    let end_index = (start_index + num_visible_rows).min(num_nodes);
+
+    // Iterate only over the visible nodes based on scroll offset
+    for (relative_index, node_index) in (start_index..end_index).enumerate() {
+        let chunk_index = relative_index + 1; // +1 to skip header chunk
+        if chunk_index >= vertical_chunks.len() {
+            // Should not happen with correct constraint calculation, but safeguard
+            break;
         }
-        let row_area = vertical_chunks[i + 1];
+        let row_area = vertical_chunks[chunk_index];
+        let (name, url) = &app.nodes[node_index];
         render_node_row(f, app, row_area, name, url);
     }
 }
