@@ -21,23 +21,23 @@ const HEADER_TITLES: [&str; 9] = [
 const HEADER_STYLE: Style = Style::new().fg(Color::Yellow);
 const DATA_CELL_STYLE: Style = Style::new().fg(Color::Gray);
 
-// New constraints with spacer after Err (index 9) and after Rx (index 11)
+// New constraints with fixed width for data columns and expanding charts
 pub const COLUMN_CONSTRAINTS: [Constraint; 14] = [
-    Constraint::Min(10),      // 0: Node (EXPANDS)
-    Constraint::Ratio(1, 20), // 1: Uptime
-    Constraint::Ratio(1, 20), // 2: Mem MB
-    Constraint::Ratio(1, 20), // 3: CPU %
-    Constraint::Ratio(1, 20), // 4: Peers (Live)
-    Constraint::Ratio(1, 20), // 5: Routing
-    Constraint::Ratio(1, 20), // 6: Records
-    Constraint::Ratio(1, 20), // 7: Reward
-    Constraint::Ratio(1, 20), // 8: Err
-    Constraint::Length(1),    // 9: Spacer 1
-    Constraint::Ratio(3, 20), // 10: Rx Chart Area
-    Constraint::Length(1),    // 11: Spacer 2
-    Constraint::Ratio(3, 20), // 12: Tx Chart Area
-    Constraint::Ratio(1, 20), // 13: Status
-]; // Ratios adjusted: 9*1 + 2*3 + 1*1 + 2 spacers = 17 units + spacers. Total ratio base = 20
+    Constraint::Length(12), // 0: Node
+    Constraint::Length(8),  // 1: Uptime
+    Constraint::Length(8),  // 2: Mem MB
+    Constraint::Length(6),  // 3: CPU %
+    Constraint::Length(6),  // 4: Peers (Live)
+    Constraint::Length(8),  // 5: Routing
+    Constraint::Length(8),  // 6: Records
+    Constraint::Length(8),  // 7: Reward
+    Constraint::Length(4),  // 8: Err
+    Constraint::Length(1),  // 9: Spacer 1
+    Constraint::Min(1),     // 10: Rx Chart Area (EXPANDS)
+    Constraint::Length(1),  // 11: Spacer 2
+    Constraint::Min(1),     // 12: Tx Chart Area (EXPANDS)
+    Constraint::Length(10), // 13: Status
+];
 
 // --- Helper Functions ---
 
