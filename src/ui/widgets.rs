@@ -8,7 +8,7 @@ use ratatui::{
     style::{Color, Style},
     symbols,
     text::{Line, Span},
-    widgets::{Axis, Chart, Dataset, Gauge, GraphType, Paragraph},
+    widgets::{Axis, Block, Borders, Chart, Dataset, Gauge, GraphType, Paragraph},
 };
 
 // --- Constants ---
@@ -294,19 +294,18 @@ fn create_summary_chart<'a>(
         .data(data);
 
     let chart = Chart::new(vec![dataset])
+        // .block(Block::default().borders(Borders::NONE))
         .x_axis(
             Axis::default()
-                .style(Style::default().fg(Color::DarkGray))
+                .style(Style::default().fg(Color::Black))
                 .bounds(x_bounds)
-                .labels(vec![])
-                .style(Style::default().fg(Color::DarkGray)),
+                .labels(vec![]),
         )
         .y_axis(
             Axis::default()
-                .style(Style::default().fg(Color::DarkGray))
+                .style(Style::default().fg(Color::Black))
                 .bounds(y_bounds)
-                .labels(vec![])
-                .style(Style::default().fg(Color::DarkGray)),
+                .labels(vec![]),
         );
 
     Some(chart)
@@ -469,39 +468,40 @@ pub fn render_node_row(
         let rx_col_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Length(8), // Total Bytes
-                Constraint::Min(1),    // Chart
+                Constraint::Length(8),  // Total Bytes
+                Constraint::Length(1),  // Spacer
+                Constraint::Min(1),     // Chart
                 Constraint::Length(10), // Speed
-                                       //Constraint::Length(1),  // Add a spacer constraint within the column? Or pad speed.
             ])
             .split(column_layout[rx_col_index]); // Use the correct chunk (index 9)
 
         let total_in_para = Paragraph::new(formatted_total_in)
             .style(Style::default().fg(Color::Cyan))
             .alignment(Alignment::Right);
-        f.render_widget(total_in_para, rx_col_layout[0]);
+        f.render_widget(total_in_para, rx_col_layout[0]); // Bytes in chunk 0
 
+        // Chart logic (render to chunk 2)
         if let Some(data) = chart_data_in {
             if let Some(chart) = create_summary_chart(data, Color::Cyan, "Rx") {
-                f.render_widget(chart, rx_col_layout[1]);
+                f.render_widget(chart, rx_col_layout[2]);
             } else {
                 let placeholder = Paragraph::new("-")
                     .style(DATA_CELL_STYLE)
                     .alignment(Alignment::Center);
-                f.render_widget(placeholder, rx_col_layout[1]);
+                f.render_widget(placeholder, rx_col_layout[2]);
             }
         } else {
             let placeholder = Paragraph::new("-")
                 .style(DATA_CELL_STYLE)
                 .alignment(Alignment::Center);
-            f.render_widget(placeholder, rx_col_layout[1]);
+            f.render_widget(placeholder, rx_col_layout[2]);
         }
 
-        // Add space after speed for separation
+        // Speed in chunk 3
         let speed_in_para = Paragraph::new(formatted_speed_in)
             .style(Style::default().fg(Color::Cyan))
             .alignment(Alignment::Right);
-        f.render_widget(speed_in_para, rx_col_layout[2]);
+        f.render_widget(speed_in_para, rx_col_layout[3]);
     }
 
     // --- Tx Column Rendering (Index 10) ---
@@ -510,39 +510,40 @@ pub fn render_node_row(
         let tx_col_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Length(8), // Total Bytes
-                Constraint::Min(1),    // Chart
+                Constraint::Length(8),  // Total Bytes
+                Constraint::Length(1),  // Spacer
+                Constraint::Min(1),     // Chart
                 Constraint::Length(10), // Speed
-                                       //Constraint::Length(1), // Spacer?
             ])
             .split(column_layout[tx_col_index]); // Use the correct chunk (index 10)
 
         let total_out_para = Paragraph::new(formatted_total_out)
             .style(Style::default().fg(Color::Magenta))
             .alignment(Alignment::Right);
-        f.render_widget(total_out_para, tx_col_layout[0]);
+        f.render_widget(total_out_para, tx_col_layout[0]); // Bytes in chunk 0
 
+        // Chart logic (render to chunk 2)
         if let Some(data) = chart_data_out {
             if let Some(chart) = create_summary_chart(data, Color::Magenta, "Tx") {
-                f.render_widget(chart, tx_col_layout[1]);
+                f.render_widget(chart, tx_col_layout[2]);
             } else {
                 let placeholder = Paragraph::new("-")
                     .style(DATA_CELL_STYLE)
                     .alignment(Alignment::Center);
-                f.render_widget(placeholder, tx_col_layout[1]);
+                f.render_widget(placeholder, tx_col_layout[2]);
             }
         } else {
             let placeholder = Paragraph::new("-")
                 .style(DATA_CELL_STYLE)
                 .alignment(Alignment::Center);
-            f.render_widget(placeholder, tx_col_layout[1]);
+            f.render_widget(placeholder, tx_col_layout[2]);
         }
 
-        // Add space after speed for separation
+        // Speed in chunk 3
         let speed_out_para = Paragraph::new(formatted_speed_out)
             .style(Style::default().fg(Color::Magenta))
             .alignment(Alignment::Right);
-        f.render_widget(speed_out_para, tx_col_layout[2]);
+        f.render_widget(speed_out_para, tx_col_layout[3]);
     }
 
     // --- Status Column Rendering (Index 11) ---
