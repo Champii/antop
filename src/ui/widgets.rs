@@ -21,36 +21,21 @@ const HEADER_TITLES: [&str; 9] = [
 const HEADER_STYLE: Style = Style::new().fg(Color::Yellow);
 const DATA_CELL_STYLE: Style = Style::new().fg(Color::Gray);
 
-// Add spacer constraint for clarity
-const SPACER: Constraint = Constraint::Length(1);
-
-// Adjusted constraints with spacers. Total columns: 9 data + 3 complex + 11 spacers = 23
-pub const COLUMN_CONSTRAINTS: [Constraint; 23] = [
+// Revert to original constraints
+pub const COLUMN_CONSTRAINTS: [Constraint; 12] = [
     Constraint::Ratio(1, 18), // 0: Node
-    SPACER,                   // 1
-    Constraint::Ratio(1, 18), // 2: Uptime
-    SPACER,                   // 3
-    Constraint::Ratio(1, 18), // 4: Mem MB
-    SPACER,                   // 5
-    Constraint::Ratio(1, 18), // 6: CPU %
-    SPACER,                   // 7
-    Constraint::Ratio(1, 18), // 8: Peers (Live)
-    SPACER,                   // 9
-    Constraint::Ratio(1, 18), // 10: Routing
-    SPACER,                   // 11
-    Constraint::Ratio(1, 18), // 12: Records
-    SPACER,                   // 13
-    Constraint::Ratio(1, 18), // 14: Reward
-    SPACER,                   // 15
-    Constraint::Ratio(1, 18), // 16: Err
-    SPACER,                   // 17
-    Constraint::Ratio(4, 18), // 18: Rx Chart Area
-    SPACER,                   // 19
-    Constraint::Ratio(4, 18), // 20: Tx Chart Area
-    SPACER,                   // 21
-    Constraint::Ratio(1, 18), // 22: Status
-];
-// Note: Ratios still sum based on the original 18 parts, spacers take fixed width first.
+    Constraint::Ratio(1, 18), // 1: Uptime
+    Constraint::Ratio(1, 18), // 2: Mem MB
+    Constraint::Ratio(1, 18), // 3: CPU %
+    Constraint::Ratio(1, 18), // 4: Peers (Live)
+    Constraint::Ratio(1, 18), // 5: Routing
+    Constraint::Ratio(1, 18), // 6: Records
+    Constraint::Ratio(1, 18), // 7: Reward
+    Constraint::Ratio(1, 18), // 8: Err
+    Constraint::Ratio(4, 18), // 9: Rx Chart Area
+    Constraint::Ratio(4, 18), // 10: Tx Chart Area
+    Constraint::Ratio(1, 18), // 11: Status
+]; // Ratios adjusted to sum to 1 (9*1 + 2*4 + 1*1 = 18)
 
 // --- NEW: Summary Gauges ---
 
@@ -329,12 +314,12 @@ fn create_summary_chart<'a>(
 pub fn render_header(f: &mut Frame, area: Rect) {
     let header_column_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints(COLUMN_CONSTRAINTS) // Use the updated constraints
+        .constraints(COLUMN_CONSTRAINTS) // Use the reverted constraints
         .split(area);
 
-    // Iterate through original titles and place them in the correct (even) indices
+    // Render original titles with spacing added manually
     for (i, title) in HEADER_TITLES.iter().enumerate() {
-        let chunk_index = i * 2; // Titles are now at indices 0, 2, 4, ...
+        let chunk_index = i;
 
         if chunk_index < header_column_chunks.len() {
             let alignment = if i == 0 {
@@ -342,33 +327,39 @@ pub fn render_header(f: &mut Frame, area: Rect) {
             } else {
                 Alignment::Right // Other titles right-aligned
             };
-            let title_paragraph = Paragraph::new(*title)
+            // Add a space for separation after each title
+            let title_text = format!("{} ", title);
+            let title_paragraph = Paragraph::new(title_text)
                 .style(HEADER_STYLE)
                 .alignment(alignment);
             f.render_widget(title_paragraph, header_column_chunks[chunk_index]);
         }
     }
 
-    // Explicitly place Rx, Tx, and Status titles in their new indices
-    let rx_index = 18;
-    let tx_index = 20;
-    let status_index = 22;
+    // Render Rx, Tx, Status titles (Indices 9, 10, 11)
+    // No trailing space needed for the last column (Status)
+    let rx_index = 9;
+    let tx_index = 10;
+    let status_index = 11;
 
     if rx_index < header_column_chunks.len() {
-        let rx_title_paragraph = Paragraph::new("Rx")
+        // Add space after Rx title
+        let rx_title_paragraph = Paragraph::new("Rx ")
             .style(HEADER_STYLE)
             .alignment(Alignment::Center);
         f.render_widget(rx_title_paragraph, header_column_chunks[rx_index]);
     }
 
     if tx_index < header_column_chunks.len() {
-        let tx_title_paragraph = Paragraph::new("Tx")
+        // Add space after Tx title
+        let tx_title_paragraph = Paragraph::new("Tx ")
             .style(HEADER_STYLE)
             .alignment(Alignment::Center);
         f.render_widget(tx_title_paragraph, header_column_chunks[tx_index]);
     }
 
     if status_index < header_column_chunks.len() {
+        // No space after Status title (last column)
         let status_title_paragraph = Paragraph::new("Status")
             .style(HEADER_STYLE)
             .alignment(Alignment::Right);
@@ -380,7 +371,7 @@ pub fn render_header(f: &mut Frame, area: Rect) {
 pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, root_path: &str, url: &str) {
     let column_layout = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints(COLUMN_CONSTRAINTS) // Uses the updated constraints with spacers
+        .constraints(COLUMN_CONSTRAINTS) // Use the reverted 12 constraints
         .split(area);
 
     // Fetch metrics for this specific node using the URL
@@ -405,9 +396,9 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, root_path: &str, ur
         ),
     };
 
-    // Place data cells in the correct (even) indices
+    // Place data cells using original indices, add trailing space for separation
     for (i, cell_content) in cells.iter().enumerate() {
-        let chunk_index = i * 2; // Data cells are at indices 0, 2, 4, ... 16
+        let chunk_index = i; // Indices 0..=8
 
         if chunk_index < column_layout.len() {
             let alignment = if i == 0 {
@@ -415,23 +406,16 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, root_path: &str, ur
             } else {
                 Alignment::Right
             };
-            let cell_paragraph = Paragraph::new(cell_content.clone())
+            // Add a space after the content for visual separation
+            let padded_content = format!("{} ", cell_content);
+            let cell_paragraph = Paragraph::new(padded_content)
                 .style(DATA_CELL_STYLE)
                 .alignment(alignment);
             f.render_widget(cell_paragraph, column_layout[chunk_index]);
         }
     }
 
-    // Place status in the correct index
-    let status_index = 22;
-    if status_index < column_layout.len() {
-        let status_paragraph = Paragraph::new(status_text)
-            .style(status_style)
-            .alignment(Alignment::Right);
-        f.render_widget(status_paragraph, column_layout[status_index]);
-    }
-
-    // --- Render Rx/Tx Columns --- Get data first ---
+    // --- Render Rx/Tx Columns (Indices 9, 10) --- Get data first ---
     let (
         chart_data_in,
         chart_data_out,
@@ -458,17 +442,18 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, root_path: &str, ur
     let formatted_speed_in = format_speed_bps(speed_in_bps);
     let formatted_speed_out = format_speed_bps(speed_out_bps);
 
-    // --- Rx Column Rendering (Index 18) ---
-    let rx_col_index = 18;
+    // --- Rx Column Rendering (Index 9) ---
+    let rx_col_index = 9;
     if rx_col_index < column_layout.len() {
         let rx_col_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Length(8),  // Total Bytes
-                Constraint::Min(1),     // Chart
+                Constraint::Length(8), // Total Bytes
+                Constraint::Min(1),    // Chart
                 Constraint::Length(10), // Speed
+                                       //Constraint::Length(1),  // Add a spacer constraint within the column? Or pad speed.
             ])
-            .split(column_layout[rx_col_index]); // Use the correct chunk
+            .split(column_layout[rx_col_index]); // Use the correct chunk (index 9)
 
         let total_in_para = Paragraph::new(formatted_total_in)
             .style(Style::default().fg(Color::Cyan))
@@ -491,23 +476,25 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, root_path: &str, ur
             f.render_widget(placeholder, rx_col_layout[1]);
         }
 
-        let speed_in_para = Paragraph::new(formatted_speed_in)
+        // Add space after speed for separation
+        let speed_in_para = Paragraph::new(format!("{} ", formatted_speed_in))
             .style(Style::default().fg(Color::Cyan))
             .alignment(Alignment::Right);
         f.render_widget(speed_in_para, rx_col_layout[2]);
     }
 
-    // --- Tx Column Rendering (Index 20) ---
-    let tx_col_index = 20;
+    // --- Tx Column Rendering (Index 10) ---
+    let tx_col_index = 10;
     if tx_col_index < column_layout.len() {
         let tx_col_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Length(8),  // Total Bytes
-                Constraint::Min(1),     // Chart
+                Constraint::Length(8), // Total Bytes
+                Constraint::Min(1),    // Chart
                 Constraint::Length(10), // Speed
+                                       //Constraint::Length(1), // Spacer?
             ])
-            .split(column_layout[tx_col_index]); // Use the correct chunk
+            .split(column_layout[tx_col_index]); // Use the correct chunk (index 10)
 
         let total_out_para = Paragraph::new(formatted_total_out)
             .style(Style::default().fg(Color::Magenta))
@@ -530,9 +517,19 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, root_path: &str, ur
             f.render_widget(placeholder, tx_col_layout[1]);
         }
 
-        let speed_out_para = Paragraph::new(formatted_speed_out)
+        // Add space after speed for separation
+        let speed_out_para = Paragraph::new(format!("{} ", formatted_speed_out))
             .style(Style::default().fg(Color::Magenta))
             .alignment(Alignment::Right);
         f.render_widget(speed_out_para, tx_col_layout[2]);
+    }
+
+    // --- Status Column Rendering (Index 11) ---
+    let status_index = 11;
+    if status_index < column_layout.len() {
+        let status_paragraph = Paragraph::new(status_text) // No trailing space needed
+            .style(status_style)
+            .alignment(Alignment::Right);
+        f.render_widget(status_paragraph, column_layout[status_index]);
     }
 }
