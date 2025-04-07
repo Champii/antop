@@ -23,15 +23,15 @@ const DATA_CELL_STYLE: Style = Style::new().fg(Color::Gray);
 
 // New constraints with fixed width for data columns and expanding charts
 pub const COLUMN_CONSTRAINTS: [Constraint; 14] = [
-    Constraint::Length(12), // 0: Node
-    Constraint::Length(8),  // 1: Uptime
-    Constraint::Length(8),  // 2: Mem MB
-    Constraint::Length(6),  // 3: CPU %
+    Constraint::Length(20), // 0: Node
+    Constraint::Length(12), // 1: Uptime
+    Constraint::Length(9),  // 2: Mem MB
+    Constraint::Length(8),  // 3: CPU %
     Constraint::Length(6),  // 4: Peers (Live)
     Constraint::Length(8),  // 5: Routing
-    Constraint::Length(6),  // 6: Records
-    Constraint::Length(6),  // 7: Reward
-    Constraint::Length(4),  // 8: Err
+    Constraint::Length(7),  // 6: Records
+    Constraint::Length(7),  // 7: Reward
+    Constraint::Length(6),  // 8: Err
     Constraint::Length(1),  // 9: Spacer 1
     Constraint::Min(1),     // 10: Rx Chart Area (EXPANDS)
     Constraint::Length(1),  // 11: Spacer 2
