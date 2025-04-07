@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - Layout adjustments (9e66a36)
+- Adjust top/bottom bar text color
 
 ## [0.2.1] - 2025-04-07
 
