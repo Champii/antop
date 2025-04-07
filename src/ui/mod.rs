@@ -53,10 +53,11 @@ pub async fn run_app<B: Backend>(
     effective_log_path: &str,
 ) -> Result<()> {
     let mut tick_timer = interval(Duration::from_secs(1)); // Refresh data every second
-    let mut discover_timer = interval(Duration::from_secs(60)); // Check for new nodes every 60s
+    let mut discover_timer = interval(Duration::from_secs(60)); // Check for new node URLs every 60s
 
-    if !app.nodes.is_empty() {
-        let urls: Vec<String> = app.nodes.iter().map(|(_, url)| url.clone()).collect();
+    // Initial metrics fetch for nodes that had URLs at startup
+    if !app.node_urls.is_empty() {
+        let urls: Vec<String> = app.node_urls.values().cloned().collect();
         let initial_results = fetch_metrics(&urls).await;
         app.update_metrics(initial_results);
     }
@@ -66,8 +67,9 @@ pub async fn run_app<B: Backend>(
 
         tokio::select! {
             _ = tick_timer.tick() => {
-                if !app.nodes.is_empty() {
-                    let urls: Vec<String> = app.nodes.iter().map(|(_, url)| url.clone()).collect();
+                 // Fetch metrics only for nodes with known URLs
+                if !app.node_urls.is_empty() {
+                    let urls: Vec<String> = app.node_urls.values().cloned().collect();
                     let results = fetch_metrics(&urls).await;
                     app.update_metrics(results);
                 }
@@ -75,24 +77,32 @@ pub async fn run_app<B: Backend>(
             _ = discover_timer.tick() => {
                 let log_path_buf = std::path::PathBuf::from(effective_log_path);
                 match find_metrics_nodes(log_path_buf).await {
-                    Ok(mut found_nodes) => {
-                        found_nodes.sort_by(|a, b| a.0.cmp(&b.0));
-                        found_nodes.dedup_by(|a, b| a.1 == b.1);
-
-                        for (name, _url) in &found_nodes {
-                            if !app.node_metrics.contains_key(name) {
-                                app.node_metrics.insert(name.clone(), Err("Discovered - Fetching...".to_string()));
+                    Ok(found_nodes_with_urls) => {
+                        // Found nodes are Vec<(dir_path, url)>
+                        let mut updated = false;
+                        for (dir_path, url) in found_nodes_with_urls {
+                             // Check if this directory is known and if the URL is new or changed
+                            if app.nodes.contains(&dir_path) {
+                                let current_url = app.node_urls.get(&dir_path);
+                                if current_url.map_or(true, |u| u != &url) {
+                                    // New URL or changed URL for a known directory
+                                    app.node_urls.insert(dir_path.clone(), url.clone());
+                                    // Initialize or re-initialize metrics status
+                                    app.node_metrics.insert(url.clone(), Err("Discovered - Fetching...".to_string()));
+                                    updated = true;
+                                }
                             }
+                            // We don't add new directories here, only update URLs for existing ones
                         }
 
-                        let lists_differ = app.nodes != found_nodes;
+                        // Optional: Check for URLs that are no longer found and mark nodes? Maybe later.
 
-                        if lists_differ {
-                            app.nodes = found_nodes;
+                        if updated {
+                            app.status_message = Some("Node URLs updated.".to_string());
                         }
                     }
                     Err(e) => {
-                        app.status_message = Some(format!("Error re-discovering nodes: {}", e));
+                        app.status_message = Some(format!("Error re-discovering node URLs: {}", e));
                     }
                 }
             },
@@ -233,7 +243,13 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
             break;
         }
         let row_area = vertical_chunks[chunk_index];
-        let (name, url) = &app.nodes[node_index];
-        render_node_row(f, app, row_area, name, url);
+
+        // Get the directory path for the current node index
+        let dir_path = &app.nodes[node_index];
+        // Find the corresponding URL, if it exists
+        let url_option = app.node_urls.get(dir_path);
+
+        // Pass the directory path and the Option<&String> URL to render_node_row
+        render_node_row(f, app, row_area, dir_path, url_option);
     }
 }

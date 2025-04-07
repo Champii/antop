@@ -3,6 +3,28 @@ use glob::glob;
 use regex::Regex;
 use std::{fs, path::PathBuf};
 
+/// Finds node root directories matching the provided glob pattern.
+pub fn find_node_directories(path_glob: &str) -> Result<Vec<String>> {
+    let mut directories = Vec::new();
+    for entry in glob(path_glob).context("Failed to read node path glob pattern")? {
+        match entry {
+            Ok(path) => {
+                // Ensure it's a directory before adding
+                if path.is_dir() {
+                    // Store the full path as the identifier
+                    directories.push(path.to_string_lossy().to_string());
+                }
+            }
+            Err(e) => {
+                // Log or handle individual glob errors if necessary
+                eprintln!("Warning: Error processing path entry: {}", e);
+            }
+        }
+    }
+    directories.sort(); // Keep the list sorted for consistency
+    Ok(directories)
+}
+
 /// Finds metrics node addresses by scanning log files specified by the glob pattern.
 /// Extracts node name from the parent directory of the log file.
 pub async fn find_metrics_nodes(log_path_glob: PathBuf) -> Result<Vec<(String, String)>> {

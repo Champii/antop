@@ -368,35 +368,57 @@ pub fn render_header(f: &mut Frame, area: Rect) {
 }
 
 /// Renders a single node's data row, including text cells and bandwidth charts.
-pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, root_path: &str, url: &str) {
+pub fn render_node_row(
+    f: &mut Frame,
+    app: &App,
+    area: Rect,
+    dir_path: &str,
+    url_option: Option<&String>,
+) {
     let column_layout = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints(COLUMN_CONSTRAINTS) // Use the reverted 12 constraints
+        .constraints(COLUMN_CONSTRAINTS) // Use the 12 constraints
         .split(area);
 
-    // Fetch metrics for this specific node using the URL
-    let metrics_result = app.node_metrics.get(url);
-
-    let (cells, status_text, status_style) = match metrics_result {
-        Some(Ok(metrics)) => (
-            create_list_item_cells(root_path, metrics),
-            "Running".to_string(),
-            Style::default().fg(Color::Green),
-        ),
-        Some(Err(e)) => (
-            create_placeholder_cells(root_path),
-            // Display the first part of the error message as status
-            e.split_whitespace().next().unwrap_or("Error").to_string(),
-            Style::default().fg(Color::Red),
-        ),
-        None => (
-            create_placeholder_cells(root_path),
-            "Unknown".to_string(),
-            Style::default().fg(Color::DarkGray),
-        ),
+    // Determine metrics, status text, and style based on URL presence and metrics map
+    let (cells, status_text, status_style, metrics_option) = match url_option {
+        Some(url) => {
+            // URL exists, try to get metrics
+            match app.node_metrics.get(url) {
+                Some(Ok(metrics)) => (
+                    create_list_item_cells(dir_path, metrics),
+                    "Running".to_string(),
+                    Style::default().fg(Color::Green),
+                    Some(Ok(metrics)), // Pass the successful metrics result
+                ),
+                Some(Err(e)) => (
+                    create_placeholder_cells(dir_path),
+                    // Display the first part of the error message as status
+                    e.split_whitespace().next().unwrap_or("Error").to_string(),
+                    Style::default().fg(Color::Red),
+                    Some(Err(e)), // Pass the error result
+                ),
+                None => (
+                    // URL exists but no entry in metrics map yet (should be rare after init)
+                    create_placeholder_cells(dir_path),
+                    "Initializing".to_string(),
+                    Style::default().fg(Color::Yellow),
+                    None, // No metrics result available
+                ),
+            }
+        }
+        None => {
+            // No URL found for this directory path
+            (
+                create_placeholder_cells(dir_path),
+                "Stopped".to_string(),
+                Style::default().fg(Color::DarkGray),
+                None, // No metrics result available
+            )
+        }
     };
 
-    // Place data cells using original indices, add trailing space for separation
+    // Place data cells (indices 0..=8)
     for (i, cell_content) in cells.iter().enumerate() {
         let chunk_index = i; // Indices 0..=8
 
@@ -423,9 +445,9 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, root_path: &str, ur
         speed_out_bps,
         total_in_bytes,
         total_out_bytes,
-    ) = metrics_result.and_then(|res| res.as_ref().ok()).map_or(
-        (None, None, None, None, None, None), // Default if no metrics
-        |m| {
+    ) = metrics_option // Use the metrics_option determined above
+        .and_then(|res| res.ok()) // Get NodeMetrics only if the result was Ok
+        .map_or((None, None, None, None, None, None), |m| {
             (
                 m.chart_data_in.as_deref(),
                 m.chart_data_out.as_deref(),
@@ -434,8 +456,7 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, root_path: &str, ur
                 m.bandwidth_inbound_bytes,
                 m.bandwidth_outbound_bytes,
             )
-        },
-    );
+        });
 
     let formatted_total_in = format_option_u64_bytes(total_in_bytes);
     let formatted_total_out = format_option_u64_bytes(total_out_bytes);

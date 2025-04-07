@@ -15,21 +15,27 @@ pub const STORAGE_PER_NODE_BYTES: u64 = 35 * 1_000_000_000;
 
 /// Holds the application state.
 pub struct App {
-    pub nodes: Vec<(String, String)>, // Stores (node_name, node_url)
-    // Store parsed metrics or error string directly, keyed by node_url
+    // --- Core Node Data ---
+    pub nodes: Vec<String>, // Stores discovered node *directory paths*
+    pub node_urls: HashMap<String, String>, // Maps node directory path to metrics URL
+    // Store parsed metrics or error string, keyed by *metrics URL*
     pub node_metrics: HashMap<String, Result<NodeMetrics, String>>,
-    pub previous_metrics: HashMap<String, NodeMetrics>, // Store previous metrics for speed calculation
+    // Map node directory path to its RECORD STORE path
+    pub node_record_store_paths: HashMap<String, PathBuf>,
+
+    // --- Metrics History & Calculation ---
+    pub previous_metrics: HashMap<String, NodeMetrics>, // Keyed by metrics URL
     pub last_update: Instant,
     pub previous_update_time: Instant, // Store the time of the previous update
-    pub speed_in_history: HashMap<String, VecDeque<u64>>, // History for Speed In sparkline
-    pub speed_out_history: HashMap<String, VecDeque<u64>>, // History for Speed Out sparkline
-    // Calculated totals
-    pub total_speed_in_history: VecDeque<u64>, // History for total speed in
-    pub total_speed_out_history: VecDeque<u64>, // History for total speed out
+    pub speed_in_history: HashMap<String, VecDeque<u64>>, // Keyed by metrics URL
+    pub speed_out_history: HashMap<String, VecDeque<u64>>, // Keyed by metrics URL
+
+    // --- Calculated Totals & Summaries ---
+    pub total_speed_in_history: VecDeque<u64>,
+    pub total_speed_out_history: VecDeque<u64>,
     pub total_cpu_usage: f64,
     pub total_allocated_storage: u64,
-    pub total_used_storage_bytes: Option<u64>, // Store calculated used storage (Option for errors)
-    // Add fields for pre-calculated summary data
+    pub total_used_storage_bytes: Option<u64>,
     pub summary_total_in_speed: f64,
     pub summary_total_out_speed: f64,
     pub summary_total_data_in_bytes: u64,
@@ -37,67 +43,67 @@ pub struct App {
     pub summary_total_records: u64,
     pub summary_total_rewards: u64,
     pub summary_total_live_peers: u64,
-    // Config & Discovered Paths
-    pub node_record_store_paths: HashMap<String, PathBuf>, // Map node name to its RECORD STORE path
-    pub status_message: Option<String>, // For displaying messages/errors in the footer
-    pub scroll_offset: usize,           // NEW: Track the scroll position for the node list
+
+    // --- UI State & Config ---
+    pub status_message: Option<String>,
+    pub scroll_offset: usize, // Track the scroll position for the node list
 }
 
 impl App {
-    /// Creates a new App instance with initial node list and storage path glob.
-    pub fn new(nodes: Vec<(String, String)>, node_path_glob_str: String) -> App {
+    /// Creates a new App instance.
+    /// `discovered_node_dirs`: List of full directory paths found matching the path glob.
+    /// `initial_node_urls`: List of (directory_path, metrics_url) found initially from logs.
+    /// `_node_path_glob_str`: Original glob pattern string (currently unused here but kept for potential future use).
+    pub fn new(
+        discovered_node_dirs: Vec<String>,
+        initial_node_urls: Vec<(String, String)>,
+        _node_path_glob_str: String, // Keep param for signature consistency
+    ) -> App {
+        let mut node_urls_map = HashMap::new();
         let mut metrics_map = HashMap::new();
         let now = Instant::now();
         let speed_in_history = HashMap::new();
         let speed_out_history = HashMap::new();
-        for (_name, url) in &nodes {
+
+        // Populate maps based on initially discovered URLs
+        for (dir_path, url) in &initial_node_urls {
+            node_urls_map.insert(dir_path.clone(), url.clone());
+            // Initialize metrics status for nodes with URLs
             metrics_map.insert(url.clone(), Err("Fetching...".to_string()));
         }
 
-        // Discover record store paths from the glob pattern
+        // Discover record store paths based on ALL discovered directories
         let mut node_record_store_paths = HashMap::new();
-        match glob(&node_path_glob_str) {
-            Ok(paths) => {
-                for entry in paths {
-                    match entry {
-                        Ok(node_dir) => {
-                            if node_dir.is_dir() {
-                                // Look directly for record_store
-                                let record_store_path = node_dir.join("record_store");
-                                // Check if the record_store subdirectory exists and is a directory
-                                if record_store_path.is_dir() {
-                                    if let Some(node_name) =
-                                        node_dir.file_name().and_then(|n| n.to_str())
-                                    {
-                                        // Store the record_store path directly
-                                        node_record_store_paths
-                                            .insert(node_name.to_string(), record_store_path);
-                                    }
-                                }
-                            }
-                        }
-                        Err(_e) => { /* Optionally log elsewhere */ }
-                    }
+        for node_dir_str in &discovered_node_dirs {
+            let node_dir = PathBuf::from(node_dir_str);
+            if node_dir.is_dir() {
+                // Should always be true based on find_node_directories
+                let record_store_path = node_dir.join("record_store");
+                if record_store_path.is_dir() {
+                    // Use the full directory path as the key
+                    node_record_store_paths.insert(node_dir_str.clone(), record_store_path);
                 }
+                // Optionally: Add logic here to handle cases where record_store is missing
+                // E.g., insert a specific marker or None, or just skip.
+                // Current logic implicitly skips nodes without a record_store dir.
             }
-            Err(_e) => { /* Optionally log elsewhere */ }
         }
 
         App {
-            nodes,
-            node_metrics: metrics_map,
+            nodes: discovered_node_dirs, // Store all discovered directory paths
+            node_urls: node_urls_map,    // Store mapping for nodes with found URLs
+            node_metrics: metrics_map,   // Initialize metrics only for those with URLs
             previous_metrics: HashMap::new(),
             last_update: now,
             speed_in_history,
             speed_out_history,
             previous_update_time: now,
-            // Initialize totals
             total_speed_in_history: VecDeque::with_capacity(SPARKLINE_HISTORY_LENGTH),
             total_speed_out_history: VecDeque::with_capacity(SPARKLINE_HISTORY_LENGTH),
             total_cpu_usage: 0.0,
-            total_allocated_storage: 0, // Will be calculated later based on discovered nodes
-            total_used_storage_bytes: None, // Initialize as None
-            // Initialize summary fields
+            // Calculate allocated storage based on nodes *with record stores*
+            total_allocated_storage: node_record_store_paths.len() as u64 * STORAGE_PER_NODE_BYTES,
+            total_used_storage_bytes: None, // Initialize as None, calculated in update_metrics
             summary_total_in_speed: 0.0,
             summary_total_out_speed: 0.0,
             summary_total_data_in_bytes: 0,
@@ -105,10 +111,9 @@ impl App {
             summary_total_records: 0,
             summary_total_rewards: 0,
             summary_total_live_peers: 0,
-            // Store config & discovered paths
-            node_record_store_paths,
-            status_message: None, // Initialize status message
-            scroll_offset: 0,     // Initialize scroll offset
+            node_record_store_paths, // Use the map populated above
+            status_message: None,
+            scroll_offset: 0,
         }
     }
 
@@ -246,9 +251,6 @@ impl App {
             current_total_live_peers += metrics.connected_peers.unwrap_or(0);
         }
         self.total_cpu_usage = current_total_cpu;
-        // Calculate allocated storage based on the number of discovered nodes with record stores
-        self.total_allocated_storage =
-            self.node_record_store_paths.len() as u64 * STORAGE_PER_NODE_BYTES;
         // Store calculated summary totals
         self.summary_total_in_speed = current_total_speed_in;
         self.summary_total_out_speed = current_total_speed_out;
