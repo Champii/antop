@@ -208,13 +208,24 @@ fn ui(f: &mut Frame, app: &mut App) {
         )
         .split(f.size());
 
+    // --- Calculate Running Node Count ---
+    let mut running_nodes_count = 0;
+    for node_path in &app.nodes {
+        if let Some(url) = app.node_urls.get(node_path) {
+            if let Some(Ok(_)) = app.node_metrics.get(url) {
+                running_nodes_count += 1;
+            }
+        }
+    }
+    let total_nodes_count = app.nodes.len();
+
     // --- Top Bar (Title + Node Count) ---
     let top_area = main_chunks[0];
     let top_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
             Constraint::Min(0),     // Title takes remaining space
-            Constraint::Length(15), // Fixed space for "Nodes: NNN"
+            Constraint::Length(20), // Increased space for "Nodes: N / N"
         ])
         .split(top_area);
 
@@ -223,7 +234,7 @@ fn ui(f: &mut Frame, app: &mut App) {
         .alignment(Alignment::Left);
     f.render_widget(title, top_chunks[0]);
 
-    let node_count_text = format!("Nodes: {}", app.nodes.len());
+    let node_count_text = format!("Nodes: {} / {}", running_nodes_count, total_nodes_count);
     let node_count_widget = Paragraph::new(node_count_text)
         .style(Style::default().fg(Color::White))
         .alignment(Alignment::Right);
