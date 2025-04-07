@@ -1,5 +1,4 @@
 use crate::metrics::{NodeMetrics, parse_metrics};
-use glob::glob;
 use std::{
     cmp::Ordering, // Add Ordering
     collections::{HashMap, VecDeque},
@@ -13,9 +12,6 @@ use std::{
 pub const SPARKLINE_HISTORY_LENGTH: usize = 60;
 // Storage per node in bytes (35 GB)
 pub const STORAGE_PER_NODE_BYTES: u64 = 35 * 1_000_000_000;
-// Tick rate bounds
-const MIN_TICK_RATE: Duration = Duration::from_millis(100);
-const MAX_TICK_RATE: Duration = Duration::from_secs(3600); // 1 hour
 
 // Discrete tick rate levels
 const TICK_LEVELS: [Duration; 13] = [

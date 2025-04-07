@@ -2,12 +2,9 @@ use anyhow::{Context, Result};
 use glob::glob;
 use regex::Regex;
 use std::{
-    fs,
-    path::{Path, PathBuf},
+    fs::{self},
+    path::PathBuf,
 };
-// Add for checking execute permissions on Unix-like systems
-#[cfg(unix)]
-use std::os::unix::fs::PermissionsExt;
 
 /// Finds node root directories matching the provided glob pattern
 /// that also contain an `antnode.pid` file, indicating a potentially running node.
