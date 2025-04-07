@@ -3,6 +3,7 @@ pub mod widgets;
 
 // --- Imports (Combined and adjusted from src/ui.rs) ---
 use self::widgets::{render_header, render_node_row};
+use crate::ui::formatters::format_duration_human;
 use crate::{app::App, cli::Cli, discovery::find_metrics_nodes, fetch::fetch_metrics};
 use anyhow::{Context, Result};
 use crossterm::{
@@ -220,10 +221,10 @@ fn ui(f: &mut Frame, app: &mut App) {
     let status_content = if let Some(msg) = &app.status_message {
         Paragraph::new(msg.clone()).style(Style::default().fg(Color::Red)) // Style errors in Red
     } else {
-        let tick_rate_secs = app.tick_rate.as_secs_f64();
+        let tick_rate_str = format_duration_human(app.tick_rate); // Use the formatter
         let default_status = format!(
-            "Update every: {:.1}s | Last update: {}s ago | {} nodes | Press 'q' to quit, +/- to change speed",
-            tick_rate_secs,
+            "Update every: {} | Last update: {}s ago | {} nodes | Press 'q' to quit, +/- to change speed",
+            tick_rate_str,
             app.last_update.elapsed().as_secs(),
             app.nodes.len()
         );

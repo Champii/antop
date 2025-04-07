@@ -103,3 +103,18 @@ pub fn create_placeholder_cells(root_path: &str) -> Vec<String> {
         format!("{:>3}", "-"),  // Err (Right aligned, width 3)
     ]
 }
+
+/// Formats a Duration into a human-readable string (ms, s, min, hr).
+pub fn format_duration_human(duration: std::time::Duration) -> String {
+    let secs = duration.as_secs_f64();
+
+    if secs < 1.0 {
+        format!("{} ms", duration.as_millis())
+    } else if secs < 60.0 {
+        format!("{:.0} s", secs)
+    } else if secs < 3600.0 {
+        format!("{:.0} min", secs / 60.0)
+    } else {
+        format!("{:.0} hr", secs / 3600.0)
+    }
+}
