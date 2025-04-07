@@ -227,14 +227,14 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
         .split(recs_rwds_col_area);
 
     let recs_text = Line::from(vec![
-        Span::styled("Recs:", Style::default().fg(Color::DarkGray)),
+        Span::styled("Recs: ", Style::default().fg(Color::DarkGray)),
         Span::styled(
             format!("{}", app.summary_total_records),
             Style::default().fg(Color::White),
         ),
     ]);
     let rwds_text = Line::from(vec![
-        Span::styled("Rwds:", Style::default().fg(Color::DarkGray)),
+        Span::styled("Rwds: ", Style::default().fg(Color::DarkGray)),
         Span::styled(
             format!("{}", app.summary_total_rewards),
             Style::default().fg(Color::Yellow),
@@ -252,7 +252,7 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
 
     // --- Peers Column Rendering ---
     let peers_text = Line::from(vec![
-        Span::styled("Peers:", Style::default().fg(Color::DarkGray)),
+        Span::styled("Peers: ", Style::default().fg(Color::DarkGray)),
         Span::styled(
             format!("{}", app.summary_total_live_peers),
             Style::default().fg(Color::Blue),

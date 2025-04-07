@@ -7,6 +7,7 @@ mod ui;
 
 use anyhow::Result;
 use clap::Parser;
+use shellexpand;
 use std::path::PathBuf;
 
 use crate::{
@@ -20,18 +21,33 @@ use crate::{
 async fn main() -> Result<()> {
     let cli = Cli::parse();
 
+    // Expand the tilde in the path provided by the user
+    let expanded_path = shellexpand::tilde(&cli.path).into_owned();
+
     // Determine the log path: use provided or derive from node path
-    let effective_log_path = cli.log_path.clone().unwrap_or_else(|| {
-        // Derive from cli.path
-        let mut path_buf = PathBuf::from(&cli.path);
-        if path_buf.file_name().map_or(false, |name| name == "*") {
-            path_buf.pop(); // Remove the "*"
-            path_buf.push("*"); // Re-add it explicitly before appending further
+    let effective_log_path = match cli.log_path.as_ref() {
+        Some(log_path) => shellexpand::tilde(log_path).into_owned(), // Expand tilde if provided
+        None => {
+            // Derive from the potentially expanded node path
+            let mut path_buf = PathBuf::from(&expanded_path);
+            let mut re_add_wildcard = false;
+
+            // Check if the last component is a wildcard
+            if path_buf.file_name().map_or(false, |name| name == "*") {
+                path_buf.pop(); // Remove the "*"
+                re_add_wildcard = true;
+            }
+
+            // Re-add wildcard if it was present, ensuring the glob structure
+            if re_add_wildcard {
+                path_buf.push("*");
+            }
+
+            path_buf.push("logs");
+            path_buf.push("antnode.log");
+            path_buf.to_string_lossy().into_owned()
         }
-        path_buf.push("logs");
-        path_buf.push("antnode.log");
-        path_buf.to_string_lossy().into_owned()
-    });
+    };
 
     let initial_servers = match find_metrics_servers(&effective_log_path) {
         Ok(servers) => {
@@ -56,7 +72,7 @@ async fn main() -> Result<()> {
 
     let mut terminal = setup_terminal()?;
 
-    let app = App::new(initial_servers, cli.path.clone());
+    let app = App::new(initial_servers, expanded_path.clone()); // Use expanded_path
 
     let run_result = run_app(&mut terminal, app, &cli, &effective_log_path).await;
 

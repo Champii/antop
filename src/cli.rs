@@ -6,16 +6,11 @@ fn default_node_path() -> String {
     shellexpand::tilde("~/.local/share/autonomi/node/*").into_owned()
 }
 
-/// Returns the default glob pattern for log files, expanding the tilde.
-fn default_log_path() -> String {
-    shellexpand::tilde("~/.local/share/autonomi/node/*/logs/antnode.log").into_owned()
-}
-
 /// Command-line arguments
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Cli {
-    /// Glob pattern for the root directories of the running nodes (e.g., "/path/to/nodes/node-*")
+    /// Glob pattern for the root directories of the running nodes
     #[arg(long, default_value_t = default_node_path())]
     pub path: String,
 
