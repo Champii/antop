@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.2.2] - 2025-04-07
+
 ### Added
 - Cpu color (1d0b97b)
 
