@@ -70,7 +70,7 @@ pub fn create_list_item_cells(root_path: &str, metrics: &NodeMetrics) -> Vec<Str
         .unwrap_or(root_path); // Fallback to full path if extraction fails
 
     vec![
-        format!("{:<18}", node_name), // Node (directory name)
+        node_name.to_string(), // Let widget handle alignment
         format!("{}", format_uptime(metrics.uptime_seconds)), // Uptime
         format!("{}MB", format_float(metrics.memory_used_mb, 1)), // Mem MB
         format!("{}%", format_float(metrics.cpu_usage_percentage, 2)), // CPU %
@@ -78,8 +78,8 @@ pub fn create_list_item_cells(root_path: &str, metrics: &NodeMetrics) -> Vec<Str
         format!("{}", format_option(metrics.peers_in_routing_table)), // Routing Table Size
         format!("{}", format_option(metrics.records_stored)), // Records
         format!("{}", format_option(metrics.reward_wallet_balance)), // Reward
-        format!("{}", total_errors),  // Err
-                                      // Status is handled separately in render_custom_node_rows
+        format!("{}", total_errors), // Err
+                               // Status is handled separately in render_custom_node_rows
     ]
 }
 
@@ -92,14 +92,14 @@ pub fn create_placeholder_cells(root_path: &str) -> Vec<String> {
         .unwrap_or(root_path); // Fallback to full path if extraction fails
 
     vec![
-        format!("{:<18}", node_name), // Node (directory name)
-        format!("{:<12}", "-"),       // Uptime
-        format!("{:<6}", "-"),        // Mem MB
-        format!("{:<5}", "-"),        // CPU %
-        format!("{:<7}", "-"),        // Peers (Live)
-        format!("{:<7}", "-"),        // Routing Table Size
-        format!("{}", "-"),           // Records
-        format!("{:<8}", "-"),        // Reward
-        format!("{}", "-"),           // Err
+        node_name.to_string(),  // Let widget handle alignment
+        format!("{:>11}", "-"), // Uptime (Right aligned, width 11)
+        format!("{:>6}", "-"),  // Mem MB (Right aligned, width 6)
+        format!("{:>5}", "-"),  // CPU % (Right aligned, width 5)
+        format!("{:>5}", "-"),  // Peers (Live) (Right aligned, width 5)
+        format!("{:>7}", "-"),  // Routing Table Size (Right aligned, width 7)
+        format!("{:>7}", "-"),  // Records (Right aligned, width 7)
+        format!("{:>8}", "-"),  // Reward (Right aligned, width 8)
+        format!("{:>3}", "-"),  // Err (Right aligned, width 3)
     ]
 }

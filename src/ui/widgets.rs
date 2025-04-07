@@ -328,8 +328,7 @@ pub fn render_header(f: &mut Frame, area: Rect) {
                 Alignment::Right // Other titles right-aligned
             };
             // Add a space for separation after each title
-            let title_text = format!("{} ", title);
-            let title_paragraph = Paragraph::new(title_text)
+            let title_paragraph = Paragraph::new(title.to_string())
                 .style(HEADER_STYLE)
                 .alignment(alignment);
             f.render_widget(title_paragraph, header_column_chunks[chunk_index]);
@@ -344,7 +343,7 @@ pub fn render_header(f: &mut Frame, area: Rect) {
 
     if rx_index < header_column_chunks.len() {
         // Add space after Rx title
-        let rx_title_paragraph = Paragraph::new("Rx ")
+        let rx_title_paragraph = Paragraph::new("Rx")
             .style(HEADER_STYLE)
             .alignment(Alignment::Center);
         f.render_widget(rx_title_paragraph, header_column_chunks[rx_index]);
@@ -352,7 +351,7 @@ pub fn render_header(f: &mut Frame, area: Rect) {
 
     if tx_index < header_column_chunks.len() {
         // Add space after Tx title
-        let tx_title_paragraph = Paragraph::new("Tx ")
+        let tx_title_paragraph = Paragraph::new("Tx")
             .style(HEADER_STYLE)
             .alignment(Alignment::Center);
         f.render_widget(tx_title_paragraph, header_column_chunks[tx_index]);
@@ -429,8 +428,7 @@ pub fn render_node_row(
                 Alignment::Right
             };
             // Add a space after the content for visual separation
-            let padded_content = format!("{} ", cell_content);
-            let cell_paragraph = Paragraph::new(padded_content)
+            let cell_paragraph = Paragraph::new(cell_content.clone())
                 .style(DATA_CELL_STYLE)
                 .alignment(alignment);
             f.render_widget(cell_paragraph, column_layout[chunk_index]);
@@ -498,7 +496,7 @@ pub fn render_node_row(
         }
 
         // Add space after speed for separation
-        let speed_in_para = Paragraph::new(format!("{} ", formatted_speed_in))
+        let speed_in_para = Paragraph::new(formatted_speed_in)
             .style(Style::default().fg(Color::Cyan))
             .alignment(Alignment::Right);
         f.render_widget(speed_in_para, rx_col_layout[2]);
@@ -539,7 +537,7 @@ pub fn render_node_row(
         }
 
         // Add space after speed for separation
-        let speed_out_para = Paragraph::new(format!("{} ", formatted_speed_out))
+        let speed_out_para = Paragraph::new(formatted_speed_out)
             .style(Style::default().fg(Color::Magenta))
             .alignment(Alignment::Right);
         f.render_widget(speed_out_para, tx_col_layout[2]);
