@@ -15,9 +15,9 @@ pub const STORAGE_PER_NODE_BYTES: u64 = 35 * 1_000_000_000;
 
 /// Holds the application state.
 pub struct App {
-    pub servers: Vec<(String, String)>, // Stores (server_name, server_url)
-    // Store parsed metrics or error string directly, keyed by server_url
-    pub metrics: HashMap<String, Result<NodeMetrics, String>>,
+    pub nodes: Vec<(String, String)>, // Stores (node_name, node_url)
+    // Store parsed metrics or error string directly, keyed by node_url
+    pub node_metrics: HashMap<String, Result<NodeMetrics, String>>,
     pub previous_metrics: HashMap<String, NodeMetrics>, // Store previous metrics for speed calculation
     pub last_update: Instant,
     pub previous_update_time: Instant, // Store the time of the previous update
@@ -38,18 +38,18 @@ pub struct App {
     pub summary_total_rewards: u64,
     pub summary_total_live_peers: u64,
     // Config & Discovered Paths
-    pub node_record_store_paths: HashMap<String, PathBuf>, // Map server name to its RECORD STORE path
+    pub node_record_store_paths: HashMap<String, PathBuf>, // Map node name to its RECORD STORE path
     pub status_message: Option<String>, // For displaying messages/errors in the footer
 }
 
 impl App {
-    /// Creates a new App instance with initial server list and storage path glob.
-    pub fn new(servers: Vec<(String, String)>, node_path_glob_str: String) -> App {
+    /// Creates a new App instance with initial node list and storage path glob.
+    pub fn new(nodes: Vec<(String, String)>, node_path_glob_str: String) -> App {
         let mut metrics_map = HashMap::new();
         let now = Instant::now();
         let speed_in_history = HashMap::new();
         let speed_out_history = HashMap::new();
-        for (_name, url) in &servers {
+        for (_name, url) in &nodes {
             metrics_map.insert(url.clone(), Err("Fetching...".to_string()));
         }
 
@@ -65,12 +65,12 @@ impl App {
                                 let record_store_path = node_dir.join("record_store");
                                 // Check if the record_store subdirectory exists and is a directory
                                 if record_store_path.is_dir() {
-                                    if let Some(server_name) =
+                                    if let Some(node_name) =
                                         node_dir.file_name().and_then(|n| n.to_str())
                                     {
                                         // Store the record_store path directly
                                         node_record_store_paths
-                                            .insert(server_name.to_string(), record_store_path);
+                                            .insert(node_name.to_string(), record_store_path);
                                     }
                                 }
                             }
@@ -83,8 +83,8 @@ impl App {
         }
 
         App {
-            servers,
-            metrics: metrics_map,
+            nodes,
+            node_metrics: metrics_map,
             previous_metrics: HashMap::new(),
             last_update: now,
             speed_in_history,
@@ -213,7 +213,7 @@ impl App {
 
         self.previous_metrics = next_previous_metrics;
         self.previous_update_time = self.last_update;
-        self.metrics = new_metrics_map;
+        self.node_metrics = new_metrics_map;
         self.last_update = update_start_time;
 
         // --- Calculate Totals ---
@@ -227,7 +227,7 @@ impl App {
         let mut current_total_rewards: u64 = 0;
         let mut current_total_live_peers: u64 = 0;
 
-        for metrics in self.metrics.values().flatten() {
+        for metrics in self.node_metrics.values().flatten() {
             // Use flatten()
             if let Some(cpu) = metrics.cpu_usage_percentage {
                 current_total_cpu += cpu;

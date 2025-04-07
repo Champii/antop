@@ -9,16 +9,17 @@ use anyhow::Result;
 use clap::Parser;
 use shellexpand;
 use std::path::PathBuf;
+use tokio;
 
 use crate::{
     app::App,
     cli::Cli,
-    discovery::find_metrics_servers,
+    discovery::find_metrics_nodes,
     ui::{restore_terminal, run_app, setup_terminal},
 };
 
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> Result<(), anyhow::Error> {
     let cli = Cli::parse();
 
     // Expand the tilde in the path provided by the user
@@ -49,40 +50,50 @@ async fn main() -> Result<()> {
         }
     };
 
-    let initial_servers = match find_metrics_servers(&effective_log_path) {
-        Ok(servers) => {
-            if servers.is_empty() {
-                // Log to stderr if no servers found initially
+    // Convert the effective_log_path String to PathBuf, CLONE it here
+    let log_path_buf = PathBuf::from(effective_log_path.clone());
+
+    // Use .await for the async discovery function
+    let initial_nodes = match find_metrics_nodes(log_path_buf).await {
+        Ok(nodes) => {
+            if nodes.is_empty() {
                 eprintln!(
-                    "Warning: No metrics servers found in logs. Waiting for discovery or manual config."
+                    "Warning: No metrics servers found initially based on the log path pattern: {}",
+                    effective_log_path
                 );
-                // Proceed with an empty list; the app loop will handle discovery later
-                Vec::new()
-            } else {
-                // Log to stdout before TUI starts
-                servers
+                eprintln!("The application will continue and attempt discovery periodically.");
             }
+            nodes
         }
         Err(e) => {
-            // Log critical error and exit if initial discovery fails
-            eprintln!("Error finding initial metrics servers: {}. Exiting.", e);
-            return Err(e);
+            eprintln!(
+                "Error during initial metrics server discovery using pattern '{}': {}",
+                effective_log_path, e
+            );
+            eprintln!(
+                "Proceeding without initial servers. Discovery will be attempted periodically."
+            );
+            Vec::new() // Return an empty vector on error
         }
     };
 
+    // Create the App state - remove mut
+    let app = App::new(initial_nodes, expanded_path.clone()); // Pass the node path glob
+
+    // Setup terminal
     let mut terminal = setup_terminal()?;
 
-    let app = App::new(initial_servers, expanded_path.clone()); // Use expanded_path
+    // Run the main application loop using .await
+    let app_result = run_app(&mut terminal, app, &cli, &effective_log_path).await;
 
-    let run_result = run_app(&mut terminal, app, &cli, &effective_log_path).await;
-
-    // Restore the terminal state using the ui module, regardless of run_result
+    // Restore terminal state
     restore_terminal(&mut terminal)?;
 
-    if let Err(err) = run_result {
-        // Keep this final error print as it happens after UI closes
-        eprintln!("Application error: {:?}", err);
-        return Err(err);
+    // Print any errors that occurred during the app run
+    if let Err(err) = app_result {
+        eprintln!("Error running application: {}", err);
+        // Optionally, return a non-zero exit code here if desired
+        // std::process::exit(1);
     }
 
     Ok(())

@@ -350,52 +350,52 @@ pub fn render_header(f: &mut Frame, area: Rect) {
 
 /// Renders a single node's data row, including text cells and bandwidth charts.
 pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, root_path: &str, url: &str) {
-    let column_chunks = Layout::default()
+    let column_layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(COLUMN_CONSTRAINTS)
         .split(area);
 
-    let rx_area = column_chunks[9];
-    let tx_area = column_chunks[10];
-    let status_area = column_chunks[11];
+    // Fetch metrics for this specific node using the URL
+    let metrics_result = app.node_metrics.get(url);
 
-    let metrics_result = app.metrics.get(url);
-    let (data_cells, style, status_text) = match metrics_result {
+    let (cells, status_text, status_style) = match metrics_result {
         Some(Ok(metrics)) => (
             create_list_item_cells(root_path, metrics),
-            Style::default().fg(Color::Green),
             "Running".to_string(),
+            Style::default().fg(Color::Green),
         ),
-        Some(Err(_)) => (
+        Some(Err(e)) => (
             create_placeholder_cells(root_path),
-            Style::default().fg(Color::Yellow),
-            "Stopped".to_string(),
+            // Display the first part of the error message as status
+            e.split_whitespace().next().unwrap_or("Error").to_string(),
+            Style::default().fg(Color::Red),
         ),
         None => (
             create_placeholder_cells(root_path),
-            Style::default().fg(Color::DarkGray),
             "Unknown".to_string(),
+            Style::default().fg(Color::DarkGray),
         ),
     };
 
-    for (idx, cell_text) in data_cells.iter().take(9).enumerate() {
-        let chunk_index = idx;
+    for (i, cell_content) in cells.iter().enumerate() {
+        let chunk_index = i;
 
-        let alignment = if idx == 0 {
+        let alignment = if i == 0 {
             Alignment::Left
         } else {
             Alignment::Right
         };
-        let cell_paragraph = Paragraph::new(cell_text.clone())
+        let cell_paragraph = Paragraph::new(cell_content.clone())
             .style(DATA_CELL_STYLE)
             .alignment(alignment);
-        f.render_widget(cell_paragraph, column_chunks[chunk_index]);
+        f.render_widget(cell_paragraph, column_layout[chunk_index]);
     }
 
+    // Use the determined status_text and status_style
     let status_paragraph = Paragraph::new(status_text)
-        .style(style)
+        .style(status_style)
         .alignment(Alignment::Right);
-    f.render_widget(status_paragraph, status_area);
+    f.render_widget(status_paragraph, column_layout[11]);
 
     // --- Render Rx/Tx Columns ---
 
@@ -433,7 +433,7 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, root_path: &str, ur
             Constraint::Min(1),
             Constraint::Length(10),
         ])
-        .split(rx_area);
+        .split(column_layout[9]);
 
     let total_in_para = Paragraph::new(formatted_total_in)
         .style(Style::default().fg(Color::Cyan))
@@ -471,7 +471,7 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, root_path: &str, ur
             Constraint::Min(1),
             Constraint::Length(10),
         ])
-        .split(tx_area);
+        .split(column_layout[10]);
 
     let total_out_para = Paragraph::new(formatted_total_out)
         .style(Style::default().fg(Color::Magenta))

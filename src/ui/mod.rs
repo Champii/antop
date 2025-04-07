@@ -3,8 +3,7 @@ pub mod widgets;
 
 // --- Imports (Combined and adjusted from src/ui.rs) ---
 use self::widgets::{render_header, render_node_row};
-use crate::{app::App, cli::Cli, discovery::find_metrics_servers, fetch::fetch_metrics};
-
+use crate::{app::App, cli::Cli, discovery::find_metrics_nodes, fetch::fetch_metrics};
 use anyhow::{Context, Result};
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
@@ -50,14 +49,14 @@ pub fn restore_terminal(terminal: &mut Terminal<CrosstermBackend<Stdout>>) -> Re
 pub async fn run_app<B: Backend>(
     terminal: &mut Terminal<B>,
     mut app: App,
-    cli: &Cli,
+    _cli: &Cli,
     effective_log_path: &str,
 ) -> Result<()> {
     let mut tick_timer = interval(Duration::from_secs(1)); // Refresh data every second
-    let mut discover_timer = interval(Duration::from_secs(60)); // Check for new servers every 60s
+    let mut discover_timer = interval(Duration::from_secs(60)); // Check for new nodes every 60s
 
-    if !app.servers.is_empty() {
-        let urls: Vec<String> = app.servers.iter().map(|(_, url)| url.clone()).collect();
+    if !app.nodes.is_empty() {
+        let urls: Vec<String> = app.nodes.iter().map(|(_, url)| url.clone()).collect();
         let initial_results = fetch_metrics(&urls).await;
         app.update_metrics(initial_results);
     }
@@ -67,34 +66,33 @@ pub async fn run_app<B: Backend>(
 
         tokio::select! {
             _ = tick_timer.tick() => {
-                if !app.servers.is_empty() {
-                    let urls: Vec<String> = app.servers.iter().map(|(_, url)| url.clone()).collect();
+                if !app.nodes.is_empty() {
+                    let urls: Vec<String> = app.nodes.iter().map(|(_, url)| url.clone()).collect();
                     let results = fetch_metrics(&urls).await;
                     app.update_metrics(results);
                 }
             },
             _ = discover_timer.tick() => {
-                match find_metrics_servers(effective_log_path) {
-                    Ok(mut found_servers) => {
-                        // Sort by name, deduplicate by URL (as done in discovery.rs)
-                        found_servers.sort_by(|a, b| a.0.cmp(&b.0));
-                        found_servers.dedup_by(|a, b| a.1 == b.1);
+                let log_path_buf = std::path::PathBuf::from(effective_log_path);
+                match find_metrics_nodes(log_path_buf).await {
+                    Ok(mut found_nodes) => {
+                        found_nodes.sort_by(|a, b| a.0.cmp(&b.0));
+                        found_nodes.dedup_by(|a, b| a.1 == b.1);
 
-                        for (name, url) in &found_servers {
-                            if !app.metrics.contains_key(url) {
-                                app.metrics.insert(url.clone(), Err(format!("Discovered {} - Fetching...", name)));
+                        for (name, _url) in &found_nodes {
+                            if !app.node_metrics.contains_key(name) {
+                                app.node_metrics.insert(name.clone(), Err("Discovered - Fetching...".to_string()));
                             }
                         }
 
-                        let lists_differ = app.servers != found_servers;
+                        let lists_differ = app.nodes != found_nodes;
 
                         if lists_differ {
-                            app.servers = found_servers;
+                            app.nodes = found_nodes;
                         }
-
                     }
                     Err(e) => {
-                        app.status_message = Some(format!("Error re-discovering metrics: {}", e));
+                        app.status_message = Some(format!("Error re-discovering nodes: {}", e));
                     }
                 }
             },
@@ -153,9 +151,9 @@ fn ui(f: &mut Frame, app: &mut App) {
         Paragraph::new(msg.clone()).style(Style::default().fg(Color::Red)) // Style errors in Red
     } else {
         let default_status = format!(
-            "Last update: {}s ago | {} servers | Press 'q' to quit",
+            "Last update: {}s ago | {} nodes | Press 'q' to quit",
             app.last_update.elapsed().as_secs(),
-            app.servers.len()
+            app.nodes.len()
         );
         Paragraph::new(default_status).alignment(Alignment::Right)
     };
@@ -176,17 +174,17 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
         horizontal: 1,
     });
 
-    let num_servers = app.servers.len();
-    if num_servers == 0 {
-        let no_servers_text = Paragraph::new("No servers discovered yet...")
+    let num_nodes = app.nodes.len();
+    if num_nodes == 0 {
+        let no_nodes_text = Paragraph::new("No nodes discovered yet...")
             .style(Style::default().fg(Color::DarkGray))
             .alignment(Alignment::Center);
-        f.render_widget(no_servers_text, inner_area);
+        f.render_widget(no_nodes_text, inner_area);
         return;
     }
 
     let mut constraints = vec![Constraint::Length(1)];
-    constraints.extend(std::iter::repeat_n(Constraint::Length(1), num_servers));
+    constraints.extend(std::iter::repeat_n(Constraint::Length(1), num_nodes));
 
     let vertical_chunks = Layout::default()
         .direction(Direction::Vertical)
@@ -195,7 +193,7 @@ fn render_custom_node_rows(f: &mut Frame, app: &mut App, area: Rect) {
 
     render_header(f, vertical_chunks[0]);
 
-    for (i, (name, url)) in app.servers.iter().enumerate() {
+    for (i, (name, url)) in app.nodes.iter().enumerate() {
         if i + 1 >= vertical_chunks.len() {
             continue;
         }

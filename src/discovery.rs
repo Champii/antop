@@ -1,18 +1,20 @@
 use anyhow::{Context, Result};
 use glob::glob;
 use regex::Regex;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{fs, path::PathBuf};
 
-/// Finds metrics server addresses by scanning log files specified by the glob pattern.
-/// Extracts server name from the parent directory of the log file.
-pub fn find_metrics_servers(log_path_glob: &str) -> Result<Vec<(String, String)>> {
+/// Finds metrics node addresses by scanning log files specified by the glob pattern.
+/// Extracts node name from the parent directory of the log file.
+pub async fn find_metrics_nodes(log_path_glob: PathBuf) -> Result<Vec<(String, String)>> {
     let re = Regex::new(r"Metrics server on (\S+)")?;
-    let mut servers: Vec<(String, String)> = Vec::new();
+    let mut nodes: Vec<(String, String)> = Vec::new();
 
-    for entry in glob(log_path_glob).context("Failed to read log path glob pattern")? {
+    // Convert PathBuf to string for glob, handle potential errors
+    let glob_str = log_path_glob
+        .to_str()
+        .ok_or_else(|| anyhow::anyhow!("Log path is not valid UTF-8"))?;
+
+    for entry in glob(glob_str).context("Failed to read log path glob pattern")? {
         match entry {
             Ok(log_file_path) => {
                 if log_file_path.is_file() {
@@ -26,7 +28,7 @@ pub fn find_metrics_servers(log_path_glob: &str) -> Result<Vec<(String, String)>
                             match process_log_file(&log_file_path, &re) {
                                 Ok(Some(address)) => {
                                     // Push the root_path and address
-                                    servers.push((root_path, address));
+                                    nodes.push((root_path, address));
                                 }
                                 Ok(None) => {
                                     // Log file processed, but no metrics address found
@@ -51,14 +53,14 @@ pub fn find_metrics_servers(log_path_glob: &str) -> Result<Vec<(String, String)>
         }
     }
 
-    servers.sort_by(|a, b| a.0.cmp(&b.0));
+    nodes.sort_by(|a, b| a.0.cmp(&b.0));
     // Note: Deduping by address might hide multiple nodes reporting the same address.
     // Consider if this is the desired behavior.
-    servers.dedup_by(|a, b| a.1 == b.1);
-    Ok(servers)
+    nodes.dedup_by(|a, b| a.1 == b.1);
+    Ok(nodes)
 }
 
-/// Reads a single log file and extracts the last metrics server address.
+/// Reads a single log file and extracts the last metrics node address.
 fn process_log_file(path: &PathBuf, re: &Regex) -> Result<Option<String>> {
     let content =
         fs::read_to_string(path).with_context(|| format!("Failed to read log file: {:?}", path))?;
