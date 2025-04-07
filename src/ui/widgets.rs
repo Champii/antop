@@ -23,7 +23,7 @@ const DATA_CELL_STYLE: Style = Style::new().fg(Color::Gray);
 
 // New constraints with spacer after Err (index 9) and after Rx (index 11)
 pub const COLUMN_CONSTRAINTS: [Constraint; 14] = [
-    Constraint::Ratio(1, 20), // 0: Node
+    Constraint::Min(10),      // 0: Node (EXPANDS)
     Constraint::Ratio(1, 20), // 1: Uptime
     Constraint::Ratio(1, 20), // 2: Mem MB
     Constraint::Ratio(1, 20), // 3: CPU %
