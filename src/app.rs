@@ -16,6 +16,23 @@ pub const STORAGE_PER_NODE_BYTES: u64 = 35 * 1_000_000_000;
 const MIN_TICK_RATE: Duration = Duration::from_millis(100);
 const MAX_TICK_RATE: Duration = Duration::from_secs(3600); // 1 hour
 
+// Discrete tick rate levels
+const TICK_LEVELS: [Duration; 13] = [
+    Duration::from_millis(100),
+    Duration::from_millis(200),
+    Duration::from_millis(500),
+    Duration::from_secs(1),
+    Duration::from_secs(2),
+    Duration::from_secs(5),
+    Duration::from_secs(10),
+    Duration::from_secs(30),
+    Duration::from_secs(60),   // 1m
+    Duration::from_secs(300),  // 5m
+    Duration::from_secs(600),  // 10m
+    Duration::from_secs(1800), // 30m
+    Duration::from_secs(3600), // 1h
+];
+
 /// Holds the application state.
 pub struct App {
     // --- Core Node Data ---
@@ -118,7 +135,7 @@ impl App {
             node_record_store_paths, // Use the map populated above
             status_message: None,
             scroll_offset: 0,
-            tick_rate: Duration::from_secs(1), // Default tick rate
+            tick_rate: TICK_LEVELS[3], // Default tick rate (1 second)
         }
     }
 
@@ -304,27 +321,42 @@ impl App {
         }
     }
 
-    /// Adjusts the application's tick rate (update interval).
+    /// Adjusts the application's tick rate (update interval) through discrete levels.
     /// `increase`: true to increase interval (slower updates), false to decrease (faster updates).
     pub fn adjust_tick_rate(&mut self, increase: bool) {
-        let current_millis = self.tick_rate.as_millis() as f64;
-        let new_millis = if increase {
-            (current_millis * 1.5).min(MAX_TICK_RATE.as_millis() as f64) // Increase by 50%
-        } else {
-            (current_millis / 1.5).max(MIN_TICK_RATE.as_millis() as f64) // Decrease by ~33%
+        // Find the current index in the TICK_LEVELS array
+        let current_index = TICK_LEVELS.iter().position(|&d| d == self.tick_rate);
+
+        let new_index = match current_index {
+            Some(index) => {
+                if increase {
+                    (index + 1).min(TICK_LEVELS.len() - 1)
+                } else {
+                    index.saturating_sub(1)
+                }
+            }
+            None => {
+                // If current tick_rate isn't exactly in levels, find the closest
+                if increase {
+                    // Find first level *greater than* current
+                    TICK_LEVELS
+                        .iter()
+                        .position(|&d| d > self.tick_rate)
+                        .unwrap_or(TICK_LEVELS.len() - 1) // Default to max if none greater
+                } else {
+                    // Find last level *less than* current
+                    TICK_LEVELS
+                        .iter()
+                        .rposition(|&d| d < self.tick_rate)
+                        .unwrap_or(0) // Default to min if none smaller
+                }
+            }
         };
 
-        // Ensure we don't go below the absolute minimum if division results in a very small number
-        let final_millis = new_millis.max(MIN_TICK_RATE.as_millis() as f64);
+        self.tick_rate = TICK_LEVELS[new_index];
 
-        self.tick_rate = Duration::from_millis(final_millis as u64);
-
-        // Ensure the final duration is clamped correctly (redundant safety check)
-        if self.tick_rate < MIN_TICK_RATE {
-            self.tick_rate = MIN_TICK_RATE;
-        } else if self.tick_rate > MAX_TICK_RATE {
-            self.tick_rate = MAX_TICK_RATE;
-        }
+        // Optional: Add a status message (can be done in ui/run_app instead)
+        // self.status_message = Some(format!("Update interval set to: {:.1?}s", self.tick_rate.as_secs_f64()));
     }
 }
 
