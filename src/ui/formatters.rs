@@ -1,5 +1,6 @@
 use crate::metrics::NodeMetrics;
 use humansize::{DECIMAL, format_size};
+use std::path::Path;
 
 // Helper to format Option<T> for display
 pub fn format_option<T: std::fmt::Display>(opt: Option<T>) -> String {
@@ -55,38 +56,50 @@ pub fn format_speed_bps(speed_bps: Option<f64>) -> String {
 }
 
 // Helper to create a vector of formatted data cell strings for a list item
-pub fn create_list_item_cells(name: &str, metrics: &NodeMetrics) -> Vec<String> {
+pub fn create_list_item_cells(root_path: &str, metrics: &NodeMetrics) -> Vec<String> {
     let put_err = metrics.put_record_errors.unwrap_or(0);
     let conn_in_err = metrics.incoming_connection_errors.unwrap_or(0);
     let conn_out_err = metrics.outgoing_connection_errors.unwrap_or(0);
     let kad_err = metrics.kad_get_closest_peers_errors.unwrap_or(0);
     let total_errors = put_err + conn_in_err + conn_out_err + kad_err;
 
+    // Extract the last component (directory name)
+    let node_name = Path::new(root_path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(root_path); // Fallback to full path if extraction fails
+
     vec![
-        format!("{:<18}", name),                                       // Node
-        format!("{}", format_uptime(metrics.uptime_seconds)),          // Uptime
-        format!("{}MB", format_float(metrics.memory_used_mb, 1)),      // Mem MB
+        format!("{:<18}", node_name), // Node (directory name)
+        format!("{}", format_uptime(metrics.uptime_seconds)), // Uptime
+        format!("{}MB", format_float(metrics.memory_used_mb, 1)), // Mem MB
         format!("{}%", format_float(metrics.cpu_usage_percentage, 2)), // CPU %
-        format!("{}", format_option(metrics.connected_peers)),         // Peers (Live)
-        format!("{}", format_option(metrics.peers_in_routing_table)),  // Routing Table Size
-        format!("{}", format_option(metrics.records_stored)),          // Records
-        format!("{}", format_option(metrics.reward_wallet_balance)),   // Reward
-        format!("{}", total_errors),                                   // Err
-                                                                       // Status is handled separately in render_custom_node_rows
+        format!("{}", format_option(metrics.connected_peers)), // Peers (Live)
+        format!("{}", format_option(metrics.peers_in_routing_table)), // Routing Table Size
+        format!("{}", format_option(metrics.records_stored)), // Records
+        format!("{}", format_option(metrics.reward_wallet_balance)), // Reward
+        format!("{}", total_errors),  // Err
+                                      // Status is handled separately in render_custom_node_rows
     ]
 }
 
 // Helper to create placeholder cells for error/unknown states
-pub fn create_placeholder_cells(name: &str) -> Vec<String> {
+pub fn create_placeholder_cells(root_path: &str) -> Vec<String> {
+    // Extract the last component (directory name)
+    let node_name = Path::new(root_path)
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or(root_path); // Fallback to full path if extraction fails
+
     vec![
-        format!("{:<18}", name), // Node
-        format!("{:<12}", "-"),  // Uptime
-        format!("{:<6}", "-"),   // Mem MB
-        format!("{:<5}", "-"),   // CPU %
-        format!("{:<7}", "-"),   // Peers (Live)
-        format!("{:<7}", "-"),   // Routing Table Size
-        format!("{}", "-"),      // Records
-        format!("{:<8}", "-"),   // Reward
-        format!("{}", "-"),      // Err
+        format!("{:<18}", node_name), // Node (directory name)
+        format!("{:<12}", "-"),       // Uptime
+        format!("{:<6}", "-"),        // Mem MB
+        format!("{:<5}", "-"),        // CPU %
+        format!("{:<7}", "-"),        // Peers (Live)
+        format!("{:<7}", "-"),        // Routing Table Size
+        format!("{}", "-"),           // Records
+        format!("{:<8}", "-"),        // Reward
+        format!("{}", "-"),           // Err
     ]
 }

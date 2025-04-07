@@ -17,17 +17,16 @@ pub fn find_metrics_servers(log_path_glob: &str) -> Result<Vec<(String, String)>
             Ok(log_file_path) => {
                 if log_file_path.is_file() {
                     // Try to get the parent directory of the log file
-                    if let Some(parent_dir) = log_file_path.parent() {
-                        // Extract server name from the parent directory's name
-                        let server_name = parent_dir
-                            .file_name()
-                            .and_then(|os_str| os_str.to_str())
-                            .map(|s| s.to_string());
+                    if let Some(log_parent_dir) = log_file_path.parent() {
+                        // Now, get the parent of the log's parent directory (the node's root)
+                        if let Some(node_root_dir) = log_parent_dir.parent() {
+                            // Use the full path of the node's root directory as the identifier
+                            let root_path = node_root_dir.to_string_lossy().to_string();
 
-                        if let Some(name) = server_name {
                             match process_log_file(&log_file_path, &re) {
                                 Ok(Some(address)) => {
-                                    servers.push((name.clone(), address));
+                                    // Push the root_path and address
+                                    servers.push((root_path, address));
                                 }
                                 Ok(None) => {
                                     // Log file processed, but no metrics address found
@@ -38,8 +37,9 @@ pub fn find_metrics_servers(log_path_glob: &str) -> Result<Vec<(String, String)>
                                 }
                             }
                         } else {
-                            // Could not determine server name from parent directory path
-                            // Optionally log this
+                            // Could not get parent of parent (e.g., log file is not in a 'logs' subdir?)
+                            // Optionally log this, or perhaps fallback to log_parent_dir?
+                            // For now, just skip if we can't get the node root dir this way.
                         }
                     } else {
                         // Could not get parent directory for the log file

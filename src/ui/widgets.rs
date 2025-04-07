@@ -349,7 +349,7 @@ pub fn render_header(f: &mut Frame, area: Rect) {
 }
 
 /// Renders a single node's data row, including text cells and bandwidth charts.
-pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &str) {
+pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, root_path: &str, url: &str) {
     let column_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(COLUMN_CONSTRAINTS)
@@ -362,17 +362,17 @@ pub fn render_node_row(f: &mut Frame, app: &App, area: Rect, name: &str, url: &s
     let metrics_result = app.metrics.get(url);
     let (data_cells, style, status_text) = match metrics_result {
         Some(Ok(metrics)) => (
-            create_list_item_cells(name, metrics),
+            create_list_item_cells(root_path, metrics),
             Style::default().fg(Color::Green),
             "Running".to_string(),
         ),
         Some(Err(_)) => (
-            create_placeholder_cells(name),
+            create_placeholder_cells(root_path),
             Style::default().fg(Color::Yellow),
             "Stopped".to_string(),
         ),
         None => (
-            create_placeholder_cells(name),
+            create_placeholder_cells(root_path),
             Style::default().fg(Color::DarkGray),
             "Unknown".to_string(),
         ),
