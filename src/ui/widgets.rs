@@ -21,22 +21,23 @@ const HEADER_TITLES: [&str; 9] = [
 const HEADER_STYLE: Style = Style::new().fg(Color::Yellow);
 const DATA_CELL_STYLE: Style = Style::new().fg(Color::Gray);
 
-// New constraints with spacer after Err (index 8)
-pub const COLUMN_CONSTRAINTS: [Constraint; 13] = [
-    Constraint::Ratio(1, 19), // 0: Node
-    Constraint::Ratio(1, 19), // 1: Uptime
-    Constraint::Ratio(1, 19), // 2: Mem MB
-    Constraint::Ratio(1, 19), // 3: CPU %
-    Constraint::Ratio(1, 19), // 4: Peers (Live)
-    Constraint::Ratio(1, 19), // 5: Routing
-    Constraint::Ratio(1, 19), // 6: Records
-    Constraint::Ratio(1, 19), // 7: Reward
-    Constraint::Ratio(1, 19), // 8: Err
-    Constraint::Length(1),    // 9: Spacer
-    Constraint::Ratio(3, 19), // 10: Rx Chart Area (Adjusted ratio)
-    Constraint::Ratio(3, 19), // 11: Tx Chart Area (Adjusted ratio)
-    Constraint::Ratio(1, 19), // 12: Status
-]; // Ratios adjusted: 9*1 + 2*3 + 1*1 + 1 spacer length = 16 units + spacer. Total ratio base = 19
+// New constraints with spacer after Err (index 9) and after Rx (index 11)
+pub const COLUMN_CONSTRAINTS: [Constraint; 14] = [
+    Constraint::Ratio(1, 20), // 0: Node
+    Constraint::Ratio(1, 20), // 1: Uptime
+    Constraint::Ratio(1, 20), // 2: Mem MB
+    Constraint::Ratio(1, 20), // 3: CPU %
+    Constraint::Ratio(1, 20), // 4: Peers (Live)
+    Constraint::Ratio(1, 20), // 5: Routing
+    Constraint::Ratio(1, 20), // 6: Records
+    Constraint::Ratio(1, 20), // 7: Reward
+    Constraint::Ratio(1, 20), // 8: Err
+    Constraint::Length(1),    // 9: Spacer 1
+    Constraint::Ratio(3, 20), // 10: Rx Chart Area
+    Constraint::Length(1),    // 11: Spacer 2
+    Constraint::Ratio(3, 20), // 12: Tx Chart Area
+    Constraint::Ratio(1, 20), // 13: Status
+]; // Ratios adjusted: 9*1 + 2*3 + 1*1 + 2 spacers = 17 units + spacers. Total ratio base = 20
 
 // --- NEW: Summary Gauges ---
 
@@ -324,7 +325,7 @@ fn create_summary_chart<'a>(
 pub fn render_header(f: &mut Frame, area: Rect) {
     let header_column_chunks = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints(COLUMN_CONSTRAINTS) // Use the NEW constraints
+        .constraints(COLUMN_CONSTRAINTS) // Use the NEW constraints (14 total)
         .split(area);
 
     // Render original titles with spacing added manually
@@ -351,10 +352,10 @@ pub fn render_header(f: &mut Frame, area: Rect) {
         }
     }
 
-    // Render Rx, Tx, Status titles (Indices 10, 11, 12)
+    // Render Rx, Tx, Status titles (Indices 10, 12, 13)
     let rx_index = 10;
-    let tx_index = 11;
-    let status_index = 12;
+    let tx_index = 12;
+    let status_index = 13;
 
     if rx_index < header_column_chunks.len() {
         let rx_title_paragraph = Paragraph::new("Rx ")
@@ -388,7 +389,7 @@ pub fn render_node_row(
 ) {
     let column_layout = Layout::default()
         .direction(Direction::Horizontal)
-        .constraints(COLUMN_CONSTRAINTS) // Use the NEW constraints
+        .constraints(COLUMN_CONSTRAINTS) // Use the NEW constraints (14 total)
         .split(area);
 
     // Determine metrics, status text, and style based on URL presence and metrics map
@@ -452,7 +453,7 @@ pub fn render_node_row(
         }
     }
 
-    // --- Render Rx/Tx Columns (Indices 10, 11) --- Get data first ---
+    // --- Render Rx/Tx Columns (Indices 10, 12) --- Get data first ---
     let (
         chart_data_in,
         chart_data_out,
@@ -519,8 +520,8 @@ pub fn render_node_row(
         f.render_widget(speed_in_para, rx_col_layout[2]); // Speed in chunk 2
     }
 
-    // --- Tx Column Rendering (Index 11) ---
-    let tx_col_index = 11;
+    // --- Tx Column Rendering (Index 12) ---
+    let tx_col_index = 12;
     if tx_col_index < column_layout.len() {
         // Restore original internal layout for Tx
         let tx_col_layout = Layout::default()
@@ -560,8 +561,8 @@ pub fn render_node_row(
         f.render_widget(speed_out_para, tx_col_layout[2]); // Speed in chunk 2
     }
 
-    // --- Status Column Rendering (Index 12) ---
-    let status_index = 12;
+    // --- Status Column Rendering (Index 13) ---
+    let status_index = 13;
     if status_index < column_layout.len() {
         let status_paragraph = Paragraph::new(status_text)
             .style(status_style)
