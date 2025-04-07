@@ -199,8 +199,8 @@ fn ui(f: &mut Frame, app: &mut App) {
         .margin(1)
         .constraints(
             [
-                Constraint::Length(2), // Top Title
-                Constraint::Length(2), // Summary Gauges (Height reduced to 2 as Peers is now separate)
+                Constraint::Length(2), // Top Title area (might need adjustment if content wraps)
+                Constraint::Length(2), // Summary Gauges
                 Constraint::Min(0),    // Node Table
                 Constraint::Length(1), // Bottom Status / Error
             ]
@@ -208,31 +208,62 @@ fn ui(f: &mut Frame, app: &mut App) {
         )
         .split(f.area());
 
-    let title = Paragraph::new("Autonomi Node Dashboard").style(Style::default().fg(Color::White));
-    f.render_widget(title, main_chunks[0]);
+    // --- Top Bar (Title + Node Count) ---
+    let top_area = main_chunks[0];
+    let top_chunks = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints([
+            Constraint::Min(0),     // Title takes remaining space
+            Constraint::Length(15), // Fixed space for "Nodes: NNN"
+        ])
+        .split(top_area);
 
-    // Render summary gauges in the new chunk
+    let title = Paragraph::new("Autonomi Node Dashboard")
+        .style(Style::default().fg(Color::White))
+        .alignment(Alignment::Left);
+    f.render_widget(title, top_chunks[0]);
+
+    let node_count_text = format!("Nodes: {}", app.nodes.len());
+    let node_count_widget = Paragraph::new(node_count_text)
+        .style(Style::default().fg(Color::White))
+        .alignment(Alignment::Right);
+    f.render_widget(node_count_widget, top_chunks[1]);
+
+    // Render summary gauges in the next chunk
     widgets::render_summary_gauges(f, app, main_chunks[1]);
 
     // Render node table in the adjusted chunk
     render_custom_node_rows(f, app, main_chunks[2]);
 
-    // Determine status text: Show error/message if present, otherwise default status
-    let status_content = if let Some(msg) = &app.status_message {
-        Paragraph::new(msg.clone()).style(Style::default().fg(Color::Red)) // Style errors in Red
+    // --- Bottom Status Bar ---
+    let bottom_area = main_chunks[3];
+    if let Some(msg) = &app.status_message {
+        // If there's an error/status message, display it across the whole bottom bar
+        let error_paragraph = Paragraph::new(msg.clone()).style(Style::default().fg(Color::Red));
+        f.render_widget(error_paragraph, bottom_area);
     } else {
-        let tick_rate_str = format_duration_human(app.tick_rate); // Use the formatter
-        let default_status = format!(
-            "Update every: {} | Last update: {}s ago | {} nodes | Press 'q' to quit, +/- to change speed",
-            tick_rate_str,
-            app.last_update.elapsed().as_secs(),
-            app.nodes.len()
-        );
-        Paragraph::new(default_status).alignment(Alignment::Right)
-    };
+        // Otherwise, split the bottom bar for standard status
+        let status_chunks = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints([
+                Constraint::Percentage(50), // Left side ("Press 'q' to quit")
+                Constraint::Percentage(50), // Right side (Update info)
+            ])
+            .split(bottom_area);
 
-    // Render status/error in the last chunk
-    f.render_widget(status_content, main_chunks[3]);
+        let left_status = Paragraph::new("Press 'q' to quit").alignment(Alignment::Left);
+
+        let tick_rate_str = format_duration_human(app.tick_rate);
+        let right_status_text = format!(
+            "Update: {} | Last: {}s ago | Speed: +/-",
+            tick_rate_str,
+            app.last_update.elapsed().as_secs()
+        );
+        let right_status = Paragraph::new(right_status_text).alignment(Alignment::Right);
+
+        f.render_widget(left_status, status_chunks[0]);
+        f.render_widget(right_status, status_chunks[1]);
+    }
 
     // Clear the status message after displaying it once (optional, remove if messages should persist)
     // app.status_message = None;
