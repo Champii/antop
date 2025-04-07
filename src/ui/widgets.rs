@@ -29,8 +29,8 @@ pub const COLUMN_CONSTRAINTS: [Constraint; 14] = [
     Constraint::Length(6),  // 3: CPU %
     Constraint::Length(6),  // 4: Peers (Live)
     Constraint::Length(8),  // 5: Routing
-    Constraint::Length(8),  // 6: Records
-    Constraint::Length(8),  // 7: Reward
+    Constraint::Length(6),  // 6: Records
+    Constraint::Length(6),  // 7: Reward
     Constraint::Length(4),  // 8: Err
     Constraint::Length(1),  // 9: Spacer 1
     Constraint::Min(1),     // 10: Rx Chart Area (EXPANDS)
@@ -61,24 +61,24 @@ pub fn get_cpu_color(percentage: f64) -> Color {
 /// Renders the summary section with gauges for CPU and Storage.
 pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
     // Outer layout: Gauges | Spacer | Bandwidth | Spacer | Recs/Rwds | Spacer | Peers | Spacer
+    // CORRECTED Outer layout: Gauges | Spacer | Recs/Rwds | Spacer | Peers | Spacer | Bandwidth (Expands)
     let outer_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(20),
-            Constraint::Length(2),
-            Constraint::Percentage(27),
-            Constraint::Length(2),
-            Constraint::Percentage(12),
-            Constraint::Length(2),
-            Constraint::Percentage(10),
-            Constraint::Min(0),
+            Constraint::Percentage(20), // 0: Gauges
+            Constraint::Length(2),      // 1: Spacer
+            Constraint::Percentage(12), // 2: Recs/Rwds (Was Bandwidth)
+            Constraint::Length(2),      // 3: Spacer
+            Constraint::Percentage(10), // 4: Peers (Was Recs/Rwds)
+            Constraint::Length(2),      // 5: Spacer
+            Constraint::Min(27),        // 6: Bandwidth (Moved to end, takes remaining space)
         ])
         .split(area);
 
     let gauges_area = outer_chunks[0];
-    let bandwidth_area = outer_chunks[2];
-    let recs_rwds_col_area = outer_chunks[4];
-    let peers_col_area = outer_chunks[6];
+    let recs_rwds_col_area = outer_chunks[2];
+    let peers_col_area = outer_chunks[4];
+    let bandwidth_area = outer_chunks[6];
 
     // Inner layout: Stack gauges vertically within the gauges_area
     let gauge_chunks = Layout::default()
@@ -183,9 +183,9 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
             Constraint::Length(5),  // Label "In:"
             Constraint::Length(10), // Data (Bytes)
             Constraint::Length(1),  // Spacer
-            Constraint::Min(9),     // Chart (Reduced Min width by 2 for spacers)
+            Constraint::Min(1),     // Chart - Changed to expand more
             Constraint::Length(1),  // Spacer
-            Constraint::Length(12), // Speed
+            Constraint::Length(10), // Speed - Reverted to fixed Length
         ])
         .split(bandwidth_layout[0]);
 
@@ -220,9 +220,9 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
             Constraint::Length(5),  // Label "Out:"
             Constraint::Length(10), // Data (Bytes)
             Constraint::Length(1),  // Spacer
-            Constraint::Min(9),     // Chart (Reduced Min width by 2 for spacers)
+            Constraint::Min(1),     // Chart - Changed to expand more
             Constraint::Length(1),  // Spacer
-            Constraint::Length(12), // Speed
+            Constraint::Length(10), // Speed - Reverted to fixed Length
         ])
         .split(bandwidth_layout[1]);
 
@@ -429,13 +429,15 @@ pub fn render_node_row(
                     Style::default().fg(Color::Red),
                     Some(Err(e)), // Pass the error result
                 ),
-                None => (
+                None => {
                     // URL exists but no entry in metrics map yet (should be rare after init)
-                    create_placeholder_cells(dir_path),
-                    "Initializing".to_string(),
-                    Style::default().fg(Color::Yellow),
-                    None, // No metrics result available
-                ),
+                    (
+                        create_placeholder_cells(dir_path),
+                        "Initializing".to_string(),
+                        Style::default().fg(Color::Yellow),
+                        None, // No metrics result available
+                    )
+                }
             }
         }
         None => {
@@ -519,9 +521,11 @@ pub fn render_node_row(
         let rx_col_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Length(8),  // Total Bytes
-                Constraint::Min(1),     // Chart
-                Constraint::Length(10), // Speed
+                Constraint::Length(8), // Total Bytes
+                Constraint::Length(1), // Spacer
+                Constraint::Min(1),    // Chart
+                Constraint::Length(1), // Spacer
+                Constraint::Length(8), // Speed
             ])
             .split(column_layout[rx_col_index]);
 
@@ -533,24 +537,24 @@ pub fn render_node_row(
 
         if let Some(data) = chart_data_in {
             if let Some(chart) = create_summary_chart(data, Color::Cyan, "Rx") {
-                f.render_widget(chart, rx_col_layout[1]); // Chart in chunk 1
+                f.render_widget(chart, rx_col_layout[2]); // Chart in chunk 2 (was 1)
             } else {
                 let placeholder = Paragraph::new("-")
                     .style(DATA_CELL_STYLE)
                     .alignment(Alignment::Center);
-                f.render_widget(placeholder, rx_col_layout[1]); // Placeholder in chunk 1
+                f.render_widget(placeholder, rx_col_layout[2]); // Placeholder in chunk 2 (was 1)
             }
         } else {
             let placeholder = Paragraph::new("-")
                 .style(DATA_CELL_STYLE)
                 .alignment(Alignment::Center);
-            f.render_widget(placeholder, rx_col_layout[1]); // Placeholder in chunk 1
+            f.render_widget(placeholder, rx_col_layout[2]); // Placeholder in chunk 2 (was 1)
         }
 
         let speed_in_para = Paragraph::new(formatted_speed_in)
             .style(Style::default().fg(Color::Cyan))
             .alignment(Alignment::Right);
-        f.render_widget(speed_in_para, rx_col_layout[2]); // Speed in chunk 2
+        f.render_widget(speed_in_para, rx_col_layout[4]); // Speed in chunk 4 (was 2)
     }
 
     // --- Tx Column Rendering (Index 12) ---
@@ -560,9 +564,11 @@ pub fn render_node_row(
         let tx_col_layout = Layout::default()
             .direction(Direction::Horizontal)
             .constraints([
-                Constraint::Length(8),  // Total Bytes
-                Constraint::Min(1),     // Chart
-                Constraint::Length(10), // Speed
+                Constraint::Length(8), // Total Bytes
+                Constraint::Length(1), // Spacer
+                Constraint::Min(1),    // Chart
+                Constraint::Length(1), // Spacer
+                Constraint::Length(8), // Speed
             ])
             .split(column_layout[tx_col_index]);
 
@@ -574,24 +580,24 @@ pub fn render_node_row(
 
         if let Some(data) = chart_data_out {
             if let Some(chart) = create_summary_chart(data, Color::Magenta, "Tx") {
-                f.render_widget(chart, tx_col_layout[1]); // Chart in chunk 1
+                f.render_widget(chart, tx_col_layout[2]); // Chart in chunk 2 (was 1)
             } else {
                 let placeholder = Paragraph::new("-")
                     .style(DATA_CELL_STYLE)
                     .alignment(Alignment::Center);
-                f.render_widget(placeholder, tx_col_layout[1]); // Placeholder in chunk 1
+                f.render_widget(placeholder, tx_col_layout[2]); // Placeholder in chunk 2 (was 1)
             }
         } else {
             let placeholder = Paragraph::new("-")
                 .style(DATA_CELL_STYLE)
                 .alignment(Alignment::Center);
-            f.render_widget(placeholder, tx_col_layout[1]); // Placeholder in chunk 1
+            f.render_widget(placeholder, tx_col_layout[2]); // Placeholder in chunk 2 (was 1)
         }
 
         let speed_out_para = Paragraph::new(formatted_speed_out)
             .style(Style::default().fg(Color::Magenta))
             .alignment(Alignment::Right);
-        f.render_widget(speed_out_para, tx_col_layout[2]); // Speed in chunk 2
+        f.render_widget(speed_out_para, tx_col_layout[4]); // Speed in chunk 4 (was 2)
     }
 
     // --- Status Column Rendering (Index 13) ---
