@@ -5,7 +5,7 @@ use crate::app::App;
 use ratatui::{
     Frame,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
-    style::{Color, Style},
+    style::{Color, Style, Stylize},
     symbols,
     text::{Line, Span},
     widgets::{Axis, Chart, Dataset, Gauge, GraphType, Paragraph},
@@ -39,6 +39,23 @@ pub const COLUMN_CONSTRAINTS: [Constraint; 14] = [
     Constraint::Ratio(1, 20), // 13: Status
 ]; // Ratios adjusted: 9*1 + 2*3 + 1*1 + 2 spacers = 17 units + spacers. Total ratio base = 20
 
+// --- Helper Functions ---
+
+/// Returns a color based on the CPU usage percentage.
+pub fn get_cpu_color(percentage: f64) -> Color {
+    if percentage >= 75.0 {
+        Color::Magenta // Very High
+    } else if percentage >= 50.0 {
+        Color::Red // High
+    } else if percentage >= 25.0 {
+        Color::Rgb(255, 165, 0) // Medium-High (Orange)
+    } else if percentage >= 10.0 {
+        Color::Yellow // Moderate
+    } else {
+        Color::Green // Low
+    }
+}
+
 // --- NEW: Summary Gauges ---
 
 /// Renders the summary section with gauges for CPU and Storage.
@@ -71,11 +88,13 @@ pub fn render_summary_gauges(f: &mut Frame, app: &App, area: Rect) {
 
     // --- CPU Gauge ---
     let cpu_percentage = app.total_cpu_usage;
+    let cpu_color = get_cpu_color(cpu_percentage);
 
     let cpu_label = Span::styled(
         format!("CPU {:.2}%", cpu_percentage),
-        Style::default().fg(Color::Blue),
-    );
+        Style::default().fg(cpu_color),
+    )
+    .bold();
     let cpu_gauge = Gauge::default()
         // .block(Block::default().title(Span::styled("CPU", Style::new().bold())))
         .gauge_style(Color::Black)
@@ -430,31 +449,9 @@ pub fn render_node_row(
         }
     };
 
-    // Place data cells (indices 0..=8)
-    for (i, cell_content) in cells.iter().enumerate() {
-        let chunk_index = i;
-        if chunk_index < column_layout.len() {
-            let alignment = if i == 0 {
-                Alignment::Left
-            } else {
-                Alignment::Right
-            };
-            // Add space suffix EXCEPT for the Err column (index 8)
-            let cell_text = if i != 8 {
-                // Don't add space after Err column
-                format!("{} ", cell_content)
-            } else {
-                cell_content.clone()
-            };
-            let cell_paragraph = Paragraph::new(cell_text)
-                .style(DATA_CELL_STYLE)
-                .alignment(alignment);
-            f.render_widget(cell_paragraph, column_layout[chunk_index]);
-        }
-    }
-
     // --- Render Rx/Tx Columns (Indices 10, 12) --- Get data first ---
     let (
+        cpu_usage_percentage_opt,
         chart_data_in,
         chart_data_out,
         speed_in_bps,
@@ -463,8 +460,9 @@ pub fn render_node_row(
         total_out_bytes,
     ) = metrics_option // Use the metrics_option determined above
         .and_then(|res| res.ok()) // Get NodeMetrics only if the result was Ok
-        .map_or((None, None, None, None, None, None), |m| {
+        .map_or((None, None, None, None, None, None, None), |m| {
             (
+                Some(m.cpu_usage_percentage),
                 m.chart_data_in.as_deref(),
                 m.chart_data_out.as_deref(),
                 m.speed_in_bps,
@@ -478,6 +476,41 @@ pub fn render_node_row(
     let formatted_total_out = format_option_u64_bytes(total_out_bytes);
     let formatted_speed_in = format_speed_bps(speed_in_bps);
     let formatted_speed_out = format_speed_bps(speed_out_bps);
+
+    // --- Render Data Cells (Indices 0..=8) ---
+    for (i, cell_content) in cells.iter().enumerate() {
+        let chunk_index = i;
+        if chunk_index < column_layout.len() {
+            let alignment = if i == 0 {
+                Alignment::Left
+            } else {
+                Alignment::Right
+            };
+
+            // Determine style: special for CPU (index 3), default otherwise
+            let style = if i == 3 {
+                // Index 3 is CPU
+                match cpu_usage_percentage_opt {
+                    Some(Some(percent)) => Style::default().fg(get_cpu_color(percent)), // Inner Option is Some(f64)
+                    Some(None) => DATA_CELL_STYLE, // Inner Option is None (metric exists but CPU is None)
+                    None => DATA_CELL_STYLE,       // Outer Option is None (no metrics result)
+                }
+            } else {
+                // Other columns use default data style
+                DATA_CELL_STYLE
+            };
+
+            // Add space suffix EXCEPT for the Err column (index 8)
+            let cell_text = if i != 8 {
+                format!("{} ", cell_content)
+            } else {
+                cell_content.clone()
+            };
+
+            let cell_paragraph = Paragraph::new(cell_text).style(style).alignment(alignment);
+            f.render_widget(cell_paragraph, column_layout[chunk_index]);
+        }
+    }
 
     // --- Rx Column Rendering (Index 10) ---
     let rx_col_index = 10;
